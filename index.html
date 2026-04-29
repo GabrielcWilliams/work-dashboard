@@ -291,10 +291,79 @@ textarea.inp{resize:vertical;min-height:80px;}
   .main{padding:14px;}
   .topbar,.nav{padding-left:14px;padding-right:14px;}
 }
+
+/* LOGIN SCREEN */
+.login-screen{position:fixed;inset:0;background:var(--bg);z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px;}
+.login-screen::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,229,160,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,160,0.02) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;}
+.login-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:36px 32px;width:min(420px,100%);position:relative;z-index:1;}
+.login-logo{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
+.login-dot{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green);animation:pulse 2s infinite;}
+.login-title{font-size:1.1rem;font-weight:800;background:linear-gradient(90deg,var(--green),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.login-sub{font-size:0.72rem;color:var(--text3);font-family:var(--mono);margin-bottom:24px;}
+.login-tabs{display:flex;gap:4px;margin-bottom:20px;background:var(--surface2);border-radius:8px;padding:4px;}
+.login-tab{flex:1;text-align:center;padding:7px;border-radius:6px;cursor:pointer;font-size:0.78rem;font-weight:600;color:var(--text3);border:none;background:transparent;transition:all 0.2s;font-family:var(--sans);}
+.login-tab.active{background:var(--green);color:#000;}
+.login-field{margin-bottom:12px;}
+.login-field label{display:block;font-family:var(--mono);font-size:0.58rem;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;}
+.login-err{background:var(--red-dim);border:1px solid rgba(239,68,68,0.3);border-radius:7px;padding:8px 12px;font-size:0.76rem;color:#fca5a5;margin-bottom:12px;display:none;}
+.login-ok{background:var(--green-dim);border:1px solid var(--green-border);border-radius:7px;padding:8px 12px;font-size:0.76rem;color:var(--green);margin-bottom:12px;display:none;}
+.login-divider{text-align:center;font-size:0.68rem;color:var(--text3);margin:14px 0;font-family:var(--mono);}
+.login-offline{background:transparent;border:1px solid var(--border);border-radius:7px;padding:9px 16px;color:var(--text2);font-family:var(--sans);font-size:0.78rem;font-weight:600;cursor:pointer;width:100%;transition:all 0.2s;}
+.login-offline:hover{border-color:var(--text3);color:var(--text);}
+.supa-banner{background:var(--amber-dim);border:1px solid rgba(245,158,11,0.3);border-radius:7px;padding:9px 12px;font-size:0.73rem;color:var(--amber);margin-bottom:14px;line-height:1.6;}
+.user-chip{display:flex;align-items:center;gap:7px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 12px 4px 8px;font-size:0.7rem;color:var(--text2);cursor:pointer;}
+.user-chip:hover{border-color:var(--red);color:var(--red);}
 </style>
 </head>
 <body>
-<div class="shell">
+
+<!-- LOGIN SCREEN -->
+<div class="login-screen" id="login-screen">
+  <div class="login-card">
+    <div class="login-logo"><div class="login-dot"></div><div class="login-title">Security Command Center</div></div>
+    <div class="login-sub">Gabriel Williams · Avesis</div>
+
+    <div id="supa-banner" class="supa-banner" style="display:none;">
+      Supabase not configured. <strong>Add your keys below</strong> to enable cloud sync, or use Offline Mode.<br>
+      Get your keys at <strong>supabase.com</strong> → Project Settings → API
+    </div>
+
+    <div id="supa-config-fields" style="display:none;margin-bottom:14px;">
+      <div class="login-field"><label>Supabase Project URL</label>
+        <input class="inp" id="cfg-url" placeholder="https://xxxx.supabase.co" oninput="saveSupaConfig()">
+      </div>
+      <div class="login-field"><label>Supabase Anon Key</label>
+        <input class="inp" id="cfg-key" placeholder="eyJhbGci..." oninput="saveSupaConfig()">
+      </div>
+    </div>
+
+    <div class="login-tabs">
+      <button class="login-tab active" id="tab-signin" onclick="switchLoginTab('signin')">Sign In</button>
+      <button class="login-tab" id="tab-signup" onclick="switchLoginTab('signup')">Create Account</button>
+    </div>
+
+    <div id="login-err" class="login-err"></div>
+    <div id="login-ok" class="login-ok"></div>
+
+    <div id="signin-form">
+      <div class="login-field"><label>Email</label><input class="inp" id="si-email" type="email" placeholder="you@email.com" onkeydown="if(event.key==='Enter')signIn()"></div>
+      <div class="login-field"><label>Password</label><input class="inp" id="si-pass" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')signIn()"></div>
+      <button class="btn btn-green" style="width:100%;margin-top:4px;" onclick="signIn()" id="signin-btn">Sign In</button>
+    </div>
+
+    <div id="signup-form" style="display:none;">
+      <div class="login-field"><label>Your Name</label><input class="inp" id="su-name" placeholder="Gabriel Williams"></div>
+      <div class="login-field"><label>Email</label><input class="inp" id="su-email" type="email" placeholder="you@email.com"></div>
+      <div class="login-field"><label>Password</label><input class="inp" id="su-pass" type="password" placeholder="Min 6 characters" onkeydown="if(event.key==='Enter')signUp()"></div>
+      <button class="btn btn-green" style="width:100%;margin-top:4px;" onclick="signUp()" id="signup-btn">Create Account</button>
+    </div>
+
+    <div class="login-divider">— or —</div>
+    <button class="login-offline" onclick="goOffline()">Continue Offline (saves locally only)</button>
+  </div>
+</div>
+
+<div class="shell" id="app-shell" style="display:none;">
 
 <!-- TOPBAR -->
 <div class="topbar">
@@ -305,6 +374,7 @@ textarea.inp{resize:vertical;min-height:80px;}
   <div class="topbar-right">
     <div id="live-date"></div>
     <div id="live-clock"></div>
+    <div id="user-chip" class="user-chip" onclick="signOut()" title="Sign out"></div>
     <div class="hamburger" id="hamburger" onclick="toggleMenu()">
       <span></span><span></span><span></span>
     </div>
@@ -786,11 +856,276 @@ textarea.inp{resize:vertical;min-height:80px;}
 </div>
 
 <script>
-// ═══════════════ STORAGE ═══════════════
+// ═══════════════ SUPABASE CONFIG ═══════════════
+const SUPA_URL = 'https://vkqjogiklqlkinjjjehq.supabase.co';
+const SUPA_KEY = 'sb_publishable_5wjyhiKWA0P-DpBra5eIpA_-nX5HMTj';
+
+let sb = null;
+let currentUser = null;
+let offlineMode = false;
+
+try {
+  sb = window.supabase.createClient(SUPA_URL, SUPA_KEY);
+} catch(e) { console.warn('Supabase init failed, offline mode'); }
+
+// ═══════════════ STORAGE (hybrid: Supabase + localStorage fallback) ═══════════════
 const S = {
   get: k => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
   set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
 };
+
+// ─── DB helpers ───
+async function dbSelect(table, extraFilter) {
+  if (!sb || offlineMode || !currentUser) return null;
+  try {
+    let q = sb.from(table).select('*').eq('user_id', currentUser.id);
+    if (extraFilter) q = extraFilter(q);
+    const { data, error } = await q;
+    if (error) throw error;
+    return data;
+  } catch(e) { console.warn('DB read error', table, e); return null; }
+}
+
+async function dbUpsert(table, row) {
+  if (!sb || offlineMode || !currentUser) return null;
+  try {
+    const { data, error } = await sb.from(table).upsert({ ...row, user_id: currentUser.id }).select();
+    if (error) throw error;
+    return data?.[0] || null;
+  } catch(e) { console.warn('DB write error', table, e); return null; }
+}
+
+async function dbDelete(table, id) {
+  if (!sb || offlineMode || !currentUser) return;
+  try {
+    await sb.from(table).delete().eq('id', id).eq('user_id', currentUser.id);
+  } catch(e) { console.warn('DB delete error', table, e); }
+}
+
+async function dbDeleteWhere(table, col, val) {
+  if (!sb || offlineMode || !currentUser) return;
+  try {
+    await sb.from(table).delete().eq(col, val).eq('user_id', currentUser.id);
+  } catch(e) { console.warn('DB delete error', table, e); }
+}
+
+// ─── AUTH ───
+async function initAuth() {
+  if (!sb) { showLogin(true); return; }
+  const { data: { session } } = await sb.auth.getSession();
+  if (session?.user) {
+    currentUser = session.user;
+    launchApp();
+  } else {
+    showLogin(false);
+  }
+  sb.auth.onAuthStateChange((_event, session) => {
+    currentUser = session?.user || null;
+  });
+}
+
+function showLogin(noSupa) {
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('app-shell').style.display = 'none';
+  if (noSupa) {
+    document.getElementById('supa-banner').style.display = 'block';
+  }
+}
+
+function launchApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app-shell').style.display = 'flex';
+  updateUserChip();
+  loadAllFromDB().then(() => {
+    buildDaySchedule(); buildWeek(); refreshToday();
+    renderTodos(); renderNotesList(); renderScripts();
+    renderDomains(); renderImpact();
+  });
+}
+
+function goOffline() {
+  offlineMode = true;
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app-shell').style.display = 'flex';
+  buildDaySchedule(); buildWeek(); refreshToday();
+  renderTodos(); renderNotesList(); renderScripts();
+  renderDomains(); renderImpact();
+}
+
+function switchLoginTab(tab) {
+  document.getElementById('signin-form').style.display = tab === 'signin' ? 'block' : 'none';
+  document.getElementById('signup-form').style.display = tab === 'signup' ? 'block' : 'none';
+  document.getElementById('tab-signin').classList.toggle('active', tab === 'signin');
+  document.getElementById('tab-signup').classList.toggle('active', tab === 'signup');
+  clearLoginMsg();
+}
+
+function showLoginErr(msg) {
+  const el = document.getElementById('login-err');
+  el.textContent = msg; el.style.display = 'block';
+  document.getElementById('login-ok').style.display = 'none';
+}
+function showLoginOk(msg) {
+  const el = document.getElementById('login-ok');
+  el.textContent = msg; el.style.display = 'block';
+  document.getElementById('login-err').style.display = 'none';
+}
+function clearLoginMsg() {
+  document.getElementById('login-err').style.display = 'none';
+  document.getElementById('login-ok').style.display = 'none';
+}
+
+async function signIn() {
+  if (!sb) { showLoginErr('Supabase not configured.'); return; }
+  const email = document.getElementById('si-email').value.trim();
+  const pass  = document.getElementById('si-pass').value;
+  if (!email || !pass) { showLoginErr('Please fill in email and password.'); return; }
+  const btn = document.getElementById('signin-btn');
+  btn.textContent = 'Signing in...'; btn.disabled = true;
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+  btn.textContent = 'Sign In'; btn.disabled = false;
+  if (error) { showLoginErr(error.message); return; }
+  currentUser = data.user;
+  launchApp();
+}
+
+async function signUp() {
+  if (!sb) { showLoginErr('Supabase not configured.'); return; }
+  const name  = document.getElementById('su-name').value.trim() || 'User';
+  const email = document.getElementById('su-email').value.trim();
+  const pass  = document.getElementById('su-pass').value;
+  if (!email || !pass) { showLoginErr('Please fill in all fields.'); return; }
+  if (pass.length < 6) { showLoginErr('Password must be at least 6 characters.'); return; }
+  const btn = document.getElementById('signup-btn');
+  btn.textContent = 'Creating account...'; btn.disabled = true;
+  const { data, error } = await sb.auth.signUp({ email, password: pass, options: { data: { name } } });
+  btn.textContent = 'Create Account'; btn.disabled = false;
+  if (error) { showLoginErr(error.message); return; }
+  if (data.session) { currentUser = data.user; launchApp(); }
+  else showLoginOk('Account created! Check your email to confirm, then sign in.');
+}
+
+async function signOut() {
+  if (supabase) await sb.auth.signOut();
+  currentUser = null; offlineMode = false;
+  showLogin(false);
+}
+
+function updateUserChip() {
+  const chip = document.getElementById('user-chip');
+  if (!chip) return;
+  if (offlineMode) { chip.textContent = '⚠️ Offline'; chip.title = 'Click to go to login'; }
+  else if (currentUser) { chip.textContent = '🟢 ' + (currentUser.email?.split('@')[0] || 'Signed in'); chip.title = 'Click to sign out'; }
+}
+
+// ─── LOAD ALL DATA FROM DB ───
+async function loadAllFromDB() {
+  if (!sb || offlineMode || !currentUser) return;
+
+  // Todos
+  const dbTodos = await dbSelect('todos', q => q.eq('archived', false).order('created_at', {ascending:false}));
+  if (dbTodos) { todos = dbTodos.map(r => ({ id:r.id, text:r.text, desc:r.description, domain:r.domain, priority:r.priority, done:r.done, doneAt:r.done_at })); S.set('gw_todos_v4', todos); }
+
+  // Archive
+  const dbArch = await dbSelect('todos', q => q.eq('archived', true).order('done_at', {ascending:false}));
+  if (dbArch) { todoArchive = dbArch.map(r => ({ id:r.id, text:r.text, desc:r.description, domain:r.domain, priority:r.priority, done:true, doneAt:r.done_at })); S.set('gw_archive_v1', todoArchive); }
+
+  // Notes
+  const dbNotes = await dbSelect('notes', q => q.order('updated_at', {ascending:false}));
+  if (dbNotes) { notes = dbNotes.map(r => ({ id:r.id+'', title:r.title, body:r.body, category:r.category, updated:new Date(r.updated_at).getTime() })); S.set('gw_notes_v1', notes); }
+
+  // Scripts
+  const dbScripts = await dbSelect('scripts', q => q.order('created_at', {ascending:false}));
+  if (dbScripts) { scripts = dbScripts.map(r => ({ id:r.id+'', name:r.name, lang:r.language, desc:r.description, tags:r.tags, code:r.code })); S.set('gw_scripts_v1', scripts); }
+
+  // Impacts
+  const dbImpacts = await dbSelect('impacts', q => q.order('created_at', {ascending:false}));
+  if (dbImpacts) { impacts = dbImpacts.map(r => ({ id:r.id, title:r.title, result:r.result, domain:r.domain, type:r.type, metric:r.metric, date:r.created_at })); S.set('gw_impacts_v1', impacts); }
+
+  // Projects
+  const dbProjects = await dbSelect('projects');
+  if (dbProjects) {
+    projects = {};
+    dbProjects.forEach(r => {
+      if (!projects[r.domain_id]) projects[r.domain_id] = [];
+      projects[r.domain_id].push({ id:r.id+'', name:r.name, status:r.status, deadline:r.deadline, desc:r.description, notes:r.notes, tasks:r.tasks||[] });
+    });
+    S.set('gw_projects_v1', projects);
+  }
+
+  // Schedule
+  const dbSched = await dbSelect('schedule_blocks', q => q.order('sort_order'));
+  if (dbSched && dbSched.length) { schedBlocks = dbSched.map(r => ({ id:r.block_id, time:r.time_label, title:r.title, desc:r.description, cls:r.color })); S.set('gw_sched_v1', schedBlocks); }
+
+  // Week days
+  const dbDays = await dbSelect('week_days', q => q.order('id'));
+  if (dbDays && dbDays.length) { dayData = dbDays.map(r => ({ id:r.day_id, name:r.name, theme:r.theme, focus:r.focus, tasks:r.tasks||[] })); S.set('gw_days_v1', dayData); }
+}
+
+// ─── SYNC HELPERS (called after each local change) ───
+async function syncTodo(t) {
+  if (!sb || offlineMode || !currentUser) return;
+  await dbUpsert('todos', { id: typeof t.id === 'number' && t.id > 9999999999 ? undefined : t.id, text:t.text, description:t.desc||'', domain:t.domain, priority:t.priority, done:t.done, archived:false, done_at:t.doneAt||null });
+}
+async function syncTodoArchive(t) {
+  if (!sb || offlineMode || !currentUser) return;
+  await sb.from('todos').update({ archived:true, done:true, done_at:t.doneAt }).eq('id', t.id).eq('user_id', currentUser.id);
+}
+async function syncDeleteTodo(id) {
+  await dbDelete('todos', id);
+}
+async function syncNote(n) {
+  if (!sb || offlineMode || !currentUser) return;
+  const isNew = isNaN(Number(n.id)) || n.id.startsWith('n');
+  const row = { title:n.title, body:n.body, category:n.category, updated_at: new Date().toISOString() };
+  if (!isNew) row.id = Number(n.id);
+  const result = await dbUpsert('notes', row);
+  if (result && isNew) { n.id = result.id+''; S.set('gw_notes_v1', notes); }
+}
+async function syncDeleteNote(id) { await dbDelete('notes', Number(id)); }
+async function syncScript(sc) {
+  if (!sb || offlineMode || !currentUser) return;
+  const isNew = isNaN(Number(sc.id)) || sc.id.startsWith('s');
+  const row = { name:sc.name, language:sc.lang, description:sc.desc, tags:sc.tags, code:sc.code };
+  if (!isNew) row.id = Number(sc.id);
+  const result = await dbUpsert('scripts', row);
+  if (result && isNew) { sc.id = result.id+''; S.set('gw_scripts_v1', scripts); }
+}
+async function syncDeleteScript(id) { await dbDelete('scripts', Number(id)); }
+async function syncImpact(imp) {
+  if (!sb || offlineMode || !currentUser) return;
+  const isNew = typeof imp.id === 'number' && imp.id > 9999999999;
+  const row = { title:imp.title, result:imp.result, domain:imp.domain, type:imp.type, metric:imp.metric };
+  if (!isNew) row.id = imp.id;
+  const result = await dbUpsert('impacts', row);
+  if (result && isNew) { imp.id = result.id; S.set('gw_impacts_v1', impacts); }
+}
+async function syncDeleteImpact(id) { await dbDelete('impacts', id); }
+async function syncProject(domId, p) {
+  if (!sb || offlineMode || !currentUser) return;
+  const isNew = isNaN(Number(p.id)) || p.id.startsWith('p');
+  const row = { domain_id:domId, name:p.name, status:p.status, deadline:p.deadline||'', description:p.desc||'', notes:p.notes||'', tasks:p.tasks||[] };
+  if (!isNew) row.id = Number(p.id);
+  const result = await dbUpsert('projects', row);
+  if (result && isNew) { p.id = result.id+''; S.set('gw_projects_v1', projects); }
+}
+async function syncDeleteProject(id) { await dbDelete('projects', Number(id)); }
+async function syncSchedule() {
+  if (!sb || offlineMode || !currentUser) return;
+  await dbDeleteWhere('schedule_blocks', 'user_id', currentUser.id);
+  for (let i=0; i<schedBlocks.length; i++) {
+    const b = schedBlocks[i];
+    await dbUpsert('schedule_blocks', { block_id:b.id, time_label:b.time, title:b.title, description:b.desc||'', color:b.cls||'green', sort_order:i });
+  }
+}
+async function syncWeekDays() {
+  if (!sb || offlineMode || !currentUser) return;
+  await dbDeleteWhere('week_days', 'user_id', currentUser.id);
+  for (const d of dayData) {
+    await dbUpsert('week_days', { day_id:d.id, name:d.name, theme:d.theme, focus:d.focus||'', tasks:d.tasks||[] });
+  }
+}
+
 
 function toggleBigPicture() {
   const body = document.getElementById('bp-body');
@@ -806,7 +1141,6 @@ function tick() {
   document.getElementById('live-clock').textContent = n.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
   document.getElementById('live-date').textContent = n.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
 }
-tick(); setInterval(tick, 1000);
 
 // ═══════════════ NAV ═══════════════
 function nav(name, btn) {
@@ -854,22 +1188,27 @@ const domColors = { 'IAM': 'b-blue', 'Endpoint Security': 'b-green', 'MS Purview
 function addTodo() {
   const text = document.getElementById('td-text').value.trim();
   if (!text) return;
-  todos.unshift({ id: Date.now(), text, desc: '', domain: document.getElementById('td-dom').value, priority: document.getElementById('td-pri').value, done: false, created: new Date().toISOString() });
+  const t = { id: Date.now(), text, desc: '', domain: document.getElementById('td-dom').value, priority: document.getElementById('td-pri').value, done: false, created: new Date().toISOString() };
+  todos.unshift(t);
   S.set('gw_todos_v4', todos);
   document.getElementById('td-text').value = '';
+  syncTodo(t);
   renderTodos();
 }
 
 function toggleTodo(id) {
   const t = todos.find(x => x.id === id);
-  if (t) { t.done = !t.done; if (t.done) t.doneAt = new Date().toISOString(); S.set('gw_todos_v4', todos); renderTodos(); updateTodayProgress(); }
+  if (t) { t.done = !t.done; if (t.done) t.doneAt = new Date().toISOString(); S.set('gw_todos_v4', todos); syncTodo(t); renderTodos(); updateTodayProgress(); }
 }
 
-function deleteTodo(id) { todos = todos.filter(x => x.id !== id); S.set('gw_todos_v4', todos); renderTodos(); updateTodayProgress(); }
+function deleteTodo(id) { todos = todos.filter(x => x.id !== id); S.set('gw_todos_v4', todos); syncDeleteTodo(id); renderTodos(); updateTodayProgress(); }
 
 function clearDone() {
   if (!confirm('Permanently delete all completed tasks?')) return;
-  todos = todos.filter(x => !x.done); S.set('gw_todos_v4', todos); renderTodos(); updateTodayProgress();
+  const doneIds = todos.filter(t=>t.done).map(t=>t.id);
+  todos = todos.filter(x => !x.done); S.set('gw_todos_v4', todos);
+  doneIds.forEach(id => syncDeleteTodo(id));
+  renderTodos(); updateTodayProgress();
 }
 
 function archiveDone() {
@@ -878,8 +1217,21 @@ function archiveDone() {
   todoArchive = [...done, ...todoArchive];
   todos = todos.filter(t => !t.done);
   S.set('gw_todos_v4', todos); S.set('gw_archive_v1', todoArchive);
+  done.forEach(t => syncTodoArchive(t));
   renderTodos(); updateTodayProgress();
-  alert(`${done.length} task(s) archived. View them in the Archive filter.`);
+  alert(done.length + ' task(s) archived.');
+}
+
+function saveTaskEdit(id, isArchive) {
+  const list = isArchive ? todoArchive : todos;
+  const t = list.find(x => x.id === id); if (!t) return;
+  t.text = document.getElementById('te-text').value.trim() || t.text;
+  t.desc = document.getElementById('te-desc').value;
+  t.domain = document.getElementById('te-dom').value;
+  t.priority = document.getElementById('te-pri').value;
+  if (isArchive) { S.set('gw_archive_v1', todoArchive); syncTodo(t); }
+  else { S.set('gw_todos_v4', todos); syncTodo(t); }
+  closeModal(); renderTodos(); updateTodayProgress();
 }
 
 function openTaskEditor(id, isArchive) {
@@ -1060,8 +1412,8 @@ const defaultDayData = [
 let schedBlocks = S.get('gw_sched_v1') || JSON.parse(JSON.stringify(defaultSchedBlocks));
 let dayData     = S.get('gw_days_v1')  || JSON.parse(JSON.stringify(defaultDayData));
 
-function saveSchedule() { S.set('gw_sched_v1', schedBlocks); }
-function saveDays()     { S.set('gw_days_v1',  dayData); }
+function saveSchedule() { S.set('gw_sched_v1', schedBlocks); syncSchedule(); }
+function saveDays()     { S.set('gw_days_v1',  dayData);    syncWeekDays(); }
 
 // ── SCHEDULE EDIT ──
 function buildDaySchedule() {
@@ -1474,6 +1826,7 @@ function saveNewProject(domId) {
     tasks: [], pct: 0
   });
   S.set('gw_projects_v1', projects);
+  syncProject(domId, projects[domId][projects[domId].length-1]);
   closeModal();
   rerenderDomainKeepOpen(domId);
 }
@@ -1557,6 +1910,7 @@ function deleteProject(domId, projId) {
   if (!confirm('Delete this project?')) return;
   projects[domId] = projects[domId].filter(x => x.id !== projId);
   S.set('gw_projects_v1', projects);
+  syncDeleteProject(projId);
   rerenderDomainKeepOpen(domId);
 }
 
@@ -1699,6 +2053,7 @@ function deleteScript(id) {
   if (!confirm('Delete this script?')) return;
   scripts = scripts.filter(x => x.id !== id);
   S.set('gw_scripts_v1', scripts);
+  syncDeleteScript(id);
   renderScripts();
 }
 
@@ -1722,8 +2077,10 @@ function openNewScript() {
 function saveNewScript() {
   const name = document.getElementById('m-sname').value.trim();
   if (!name) return;
-  scripts.unshift({ id: 's'+Date.now(), name, lang: document.getElementById('m-slang').value, desc: document.getElementById('m-sdesc').value, tags: document.getElementById('m-stags').value, code: document.getElementById('m-scode').value });
+  const sc = { id: 's'+Date.now(), name, lang: document.getElementById('m-slang').value, desc: document.getElementById('m-sdesc').value, tags: document.getElementById('m-stags').value, code: document.getElementById('m-scode').value };
+  scripts.unshift(sc);
   S.set('gw_scripts_v1', scripts);
+  syncScript(sc);
   closeModal(); renderScripts();
 }
 
@@ -1996,19 +2353,13 @@ const impDomColors = {
 function addImpact() {
   const title = document.getElementById('imp-title').value.trim();
   if (!title) { document.getElementById('imp-title').focus(); return; }
-  impacts.unshift({
-    id: Date.now(),
-    title,
-    result: document.getElementById('imp-result').value.trim(),
-    domain: document.getElementById('imp-domain').value,
-    type: document.getElementById('imp-type').value,
-    metric: document.getElementById('imp-metric').value.trim(),
-    date: new Date().toISOString()
-  });
+  const imp = { id: Date.now(), title, result: document.getElementById('imp-result').value.trim(), domain: document.getElementById('imp-domain').value, type: document.getElementById('imp-type').value, metric: document.getElementById('imp-metric').value.trim(), date: new Date().toISOString() };
+  impacts.unshift(imp);
   S.set('gw_impacts_v1', impacts);
   document.getElementById('imp-title').value = '';
   document.getElementById('imp-result').value = '';
   document.getElementById('imp-metric').value = '';
+  syncImpact(imp);
   renderImpact();
 }
 
@@ -2022,6 +2373,7 @@ function filterImpact(f, btn) {
 function deleteImpact(id) {
   impacts = impacts.filter(x => x.id !== id);
   S.set('gw_impacts_v1', impacts);
+  syncDeleteImpact(id);
   renderImpact();
 }
 
@@ -2067,6 +2419,7 @@ function saveImpactEdit(id) {
   e.domain = document.getElementById('ei-domain').value;
   e.type = document.getElementById('ei-type').value;
   S.set('gw_impacts_v1', impacts);
+  syncImpact(e);
   closeModal(); renderImpact();
 }
 
@@ -2183,15 +2536,40 @@ function copyRapSheet() {
   });
 }
 
+function saveCurrentNote() {
+  if (!currentNoteId) return;
+  const n = notes.find(x => x.id === currentNoteId); if (!n) return;
+  n.title = document.getElementById('note-title-inp').value || 'Untitled';
+  n.category = document.getElementById('note-cat-inp').value;
+  n.body = document.getElementById('note-body').value;
+  n.updated = Date.now();
+  S.set('gw_notes_v1', notes);
+  document.getElementById('note-saved').textContent = 'Saved ' + new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+  updateNoteWordCount();
+  syncNote(n);
+  renderNotesList();
+}
+
+function deleteCurrentNote() {
+  if (!currentNoteId) return;
+  if (!confirm('Delete this note?')) return;
+  const id = currentNoteId;
+  notes = notes.filter(x => x.id !== currentNoteId);
+  currentNoteId = null;
+  S.set('gw_notes_v1', notes);
+  syncDeleteNote(id);
+  document.getElementById('note-title-inp').value = '';
+  document.getElementById('note-body').value = '';
+  document.getElementById('note-saved').textContent = '—';
+  renderNotesList();
+}
+
+// ─── INIT ───
 // ═══════════════ INIT ═══════════════
 buildDaySchedule();
 buildWeek();
-refreshToday();
-renderTodos();
-renderNotesList();
-renderScripts();
-renderDomains();
-renderImpact();
+tick(); setInterval(tick, 1000);
+initAuth();
 </script>
 </body>
 </html>
