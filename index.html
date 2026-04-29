@@ -1,0 +1,2197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gabriel Williams — Security Command Center</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #070b14;
+  --surface: #0d1524;
+  --surface2: #111d2e;
+  --surface3: #162035;
+  --border: #1c2d45;
+  --border2: #243650;
+  --green: #00e5a0;
+  --green-dim: rgba(0,229,160,0.1);
+  --green-border: rgba(0,229,160,0.25);
+  --blue: #3b82f6;
+  --blue-dim: rgba(59,130,246,0.1);
+  --purple: #a855f7;
+  --purple-dim: rgba(168,85,247,0.1);
+  --amber: #f59e0b;
+  --amber-dim: rgba(245,158,11,0.1);
+  --red: #ef4444;
+  --red-dim: rgba(239,68,68,0.1);
+  --cyan: #06b6d4;
+  --text: #e2e8f0;
+  --text2: #94a3b8;
+  --text3: #4a5568;
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'DM Sans', sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,229,160,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,160,0.02) 1px,transparent 1px);background-size:32px 32px;pointer-events:none;z-index:0;}
+
+.shell{position:relative;z-index:1;display:flex;flex-direction:column;min-height:100vh;}
+
+/* TOPBAR */
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:50px;border-bottom:1px solid var(--border);background:rgba(7,11,20,0.95);backdrop-filter:blur(8px);position:sticky;top:0;z-index:200;flex-shrink:0;}
+.topbar-left{display:flex;align-items:center;gap:12px;}
+.logo-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+.logo-text{font-family:var(--mono);font-size:0.68rem;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:2px;}
+.topbar-right{display:flex;align-items:center;gap:14px;}
+#live-clock{font-family:var(--mono);font-size:0.68rem;color:var(--text2);}
+#live-date{font-family:var(--mono);font-size:0.62rem;color:var(--text3);}
+
+/* NAV */
+.nav{display:flex;gap:1px;padding:0 20px;border-bottom:1px solid var(--border);overflow-x:auto;flex-shrink:0;background:rgba(7,11,20,0.8);}
+.nav::-webkit-scrollbar{height:0;}
+.nav-btn{background:transparent;border:none;border-bottom:2px solid transparent;color:var(--text3);padding:10px 14px 11px;cursor:pointer;font-family:var(--sans);font-size:0.75rem;font-weight:600;white-space:nowrap;transition:all 0.2s;display:flex;align-items:center;gap:5px;}
+.nav-btn:hover{color:var(--text2);}
+.nav-btn.active{color:var(--green);border-bottom-color:var(--green);}
+
+/* MAIN */
+.main{flex:1;padding:22px 20px;overflow-y:auto;max-width:1200px;margin:0 auto;width:100%;}
+.panel{display:none;animation:fadeUp 0.2s ease;}
+.panel.active{display:block;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* TYPOGRAPHY */
+.page-title{font-size:1.3rem;font-weight:700;color:var(--text);margin-bottom:3px;}
+.page-sub{font-size:0.75rem;color:var(--text3);font-family:var(--mono);margin-bottom:20px;}
+.sec-label{font-family:var(--mono);font-size:0.58rem;color:var(--green);text-transform:uppercase;letter-spacing:3px;margin:24px 0 12px;display:flex;align-items:center;gap:10px;}
+.sec-label:first-child{margin-top:0;}
+.sec-label::after{content:'';flex:1;height:1px;background:var(--border);}
+
+/* CARDS */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px;}
+.g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;}
+.g3{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;}
+.g4{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;}
+
+/* BADGES */
+.badge{font-family:var(--mono);font-size:0.56rem;padding:2px 6px;border-radius:3px;text-transform:uppercase;letter-spacing:0.5px;font-weight:700;flex-shrink:0;}
+.b-green{background:var(--green-dim);color:var(--green);border:1px solid var(--green-border);}
+.b-blue{background:var(--blue-dim);color:#93c5fd;border:1px solid rgba(59,130,246,0.3);}
+.b-purple{background:var(--purple-dim);color:#d8b4fe;border:1px solid rgba(168,85,247,0.3);}
+.b-amber{background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,158,11,0.3);}
+.b-red{background:var(--red-dim);color:#fca5a5;border:1px solid rgba(239,68,68,0.3);}
+.b-cyan{background:rgba(6,182,212,0.1);color:#67e8f9;border:1px solid rgba(6,182,212,0.3);}
+
+/* TIPS */
+.tip{background:rgba(0,229,160,0.04);border-left:2px solid var(--green);border-radius:0 8px 8px 0;padding:12px 16px;font-size:0.9rem;color:var(--text2);margin-bottom:14px;line-height:1.7;}
+.tip strong{color:var(--green);}
+
+/* SANDWICH MENU */
+.hamburger{display:none;flex-direction:column;gap:4px;cursor:pointer;padding:6px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);}
+.hamburger span{display:block;width:18px;height:2px;background:var(--text2);border-radius:2px;transition:all 0.3s;}
+.hamburger.open span:nth-child(1){transform:translateY(6px) rotate(45deg);}
+.hamburger.open span:nth-child(2){opacity:0;}
+.hamburger.open span:nth-child(3){transform:translateY(-6px) rotate(-45deg);}
+.mobile-menu{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:300;flex-direction:column;padding:60px 24px 24px;}
+.mobile-menu.open{display:flex;}
+.mobile-nav-btn{background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text2);padding:16px 0;cursor:pointer;font-family:var(--sans);font-size:1rem;font-weight:600;text-align:left;display:flex;align-items:center;gap:12px;transition:color 0.2s;}
+.mobile-nav-btn:hover{color:var(--green);}
+.mobile-close{position:absolute;top:14px;right:20px;background:transparent;border:none;color:var(--text2);font-size:1.4rem;cursor:pointer;}
+@media(max-width:700px){.hamburger{display:flex;}.nav{display:none;}}
+
+
+/* INPUTS */
+.inp{background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:9px 12px;color:var(--text);font-family:var(--sans);font-size:0.82rem;outline:none;transition:border-color 0.2s;width:100%;}
+.inp:focus{border-color:var(--green);}
+.inp::placeholder{color:var(--text3);}
+select.inp{cursor:pointer;}
+.btn{border:none;border-radius:7px;padding:9px 16px;font-family:var(--sans);font-size:0.8rem;font-weight:700;cursor:pointer;transition:opacity 0.2s;}
+.btn:hover{opacity:0.85;}
+.btn-green{background:var(--green);color:#000;}
+.btn-ghost{background:var(--surface2);color:var(--text2);border:1px solid var(--border);}
+.btn-ghost:hover{border-color:var(--green);color:var(--green);}
+.btn-red{background:var(--red-dim);color:#fca5a5;border:1px solid rgba(239,68,68,0.3);}
+
+/* TODO */
+.todo-row{display:flex;gap:7px;margin-bottom:14px;flex-wrap:wrap;}
+.todo-item{display:flex;flex-direction:column;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:5px;animation:slideIn 0.2s ease;}
+.todo-item-top{display:flex;align-items:flex-start;gap:9px;}
+@keyframes slideIn{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:translateX(0)}}
+.todo-item.done{opacity:0.4;}
+.todo-item.done .todo-text{text-decoration:line-through;color:var(--text3);}
+.cb{width:15px;height:15px;border-radius:3px;border:2px solid var(--border2);cursor:pointer;flex-shrink:0;margin-top:2px;display:flex;align-items:center;justify-content:center;transition:all 0.2s;}
+.cb.chk{background:var(--green);border-color:var(--green);}
+.cb.chk::after{content:'✓';font-size:0.55rem;color:#000;font-weight:700;}
+.todo-text{flex:1;font-size:0.83rem;color:var(--text);line-height:1.4;font-weight:500;}
+.todo-desc{font-size:0.76rem;color:var(--text3);margin-top:5px;margin-left:24px;line-height:1.5;font-style:italic;}
+.todo-meta{display:flex;align-items:center;gap:5px;flex-shrink:0;flex-wrap:wrap;}
+.del-btn{background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:0.75rem;padding:2px 4px;border-radius:3px;}
+.del-btn:hover{color:var(--red);}
+.prog-wrap{background:var(--surface2);border-radius:4px;height:3px;margin-bottom:14px;overflow:hidden;}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--green),var(--blue));border-radius:4px;transition:width 0.4s ease;}
+.prog-lbl{display:flex;justify-content:space-between;font-family:var(--mono);font-size:0.6rem;color:var(--text3);margin-bottom:5px;}
+.filter-row{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px;}
+.fbtn{background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 11px;font-size:0.7rem;color:var(--text2);cursor:pointer;font-family:var(--sans);transition:all 0.2s;}
+.fbtn:hover,.fbtn.active{background:var(--green-dim);border-color:var(--green);color:var(--green);}
+.empty{text-align:center;padding:28px;color:var(--text3);font-size:0.78rem;font-family:var(--mono);}
+.archive-item{display:flex;flex-direction:column;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:5px;opacity:0.6;}
+.archive-item-top{display:flex;align-items:center;gap:8px;}
+.archive-check{color:var(--green);font-size:0.8rem;flex-shrink:0;}
+.archive-text{flex:1;font-size:0.8rem;color:var(--text2);text-decoration:line-through;}
+.archive-meta{display:flex;gap:5px;flex-wrap:wrap;margin-top:4px;margin-left:20px;}
+.archive-date{font-family:var(--mono);font-size:0.58rem;color:var(--text3);}
+
+/* SCHEDULE */
+.sched-block{display:flex;gap:12px;margin-bottom:7px;align-items:stretch;}
+.sched-time{font-family:var(--mono);font-size:0.6rem;color:var(--green);min-width:52px;padding-top:11px;text-align:right;flex-shrink:0;line-height:1.3;}
+.sched-line{display:flex;flex-direction:column;align-items:center;flex-shrink:0;}
+.sched-dot{width:7px;height:7px;border-radius:50%;border:2px solid var(--green);background:var(--bg);margin-top:13px;flex-shrink:0;}
+.sched-conn{flex:1;width:1px;background:var(--border);margin-top:2px;}
+.sched-card{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 13px;}
+.sched-card.green{border-left:3px solid var(--green);}
+.sched-card.blue{border-left:3px solid var(--blue);}
+.sched-card.purple{border-left:3px solid var(--purple);}
+.sched-card.amber{border-left:3px solid var(--amber);}
+.sched-card.gray{border-left:3px solid var(--border2);}
+.sched-title{font-size:0.82rem;font-weight:600;color:var(--text);}
+.sched-desc{font-size:0.72rem;color:var(--text2);margin-top:3px;line-height:1.5;}
+
+/* DOMAIN CARDS */
+.dom-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:14px;}
+.dom-hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer;user-select:none;background:var(--surface2);transition:background 0.2s;}
+.dom-hdr:hover{background:var(--surface3);}
+.dom-hdr-left{display:flex;align-items:center;gap:11px;}
+.dom-icon{font-size:1.1rem;}
+.dom-name{font-size:0.9rem;font-weight:700;}
+.dom-sub{font-size:0.7rem;color:var(--text2);margin-top:1px;}
+.dom-chev{color:var(--text3);font-size:0.65rem;transition:transform 0.25s;font-family:var(--mono);}
+.dom-body{display:none;padding:16px;border-top:1px solid var(--border);}
+.dom-body.open{display:block;}
+
+/* SUBTASKS */
+.stask{display:flex;gap:9px;padding:7px 0;border-bottom:1px solid var(--border);font-size:0.88rem;color:var(--text2);line-height:1.6;align-items:flex-start;}
+.stask:last-child{border-bottom:none;}
+.sdot{width:4px;height:4px;border-radius:50%;background:var(--green);margin-top:9px;flex-shrink:0;}
+.sfreq{font-family:var(--mono);font-size:0.56rem;color:var(--text3);flex-shrink:0;margin-top:3px;min-width:48px;text-align:right;}
+
+/* TOOL CHIPS */
+.tool-grid{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+.tc{display:flex;align-items:center;gap:4px;background:var(--surface3);border:1px solid var(--border);border-radius:5px;padding:3px 9px;font-family:var(--mono);font-size:0.62rem;color:var(--text2);transition:all 0.2s;cursor:default;}
+.tc:hover{border-color:var(--green);color:var(--green);}
+.tcd{width:4px;height:4px;border-radius:50%;}
+
+/* PROJECTS SECTION */
+.proj-section{margin-top:14px;padding-top:14px;border-top:1px solid var(--border);}
+.proj-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.proj-card{background:var(--surface3);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;}
+.proj-card-hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px;flex-wrap:wrap;}
+.proj-name{font-size:0.83rem;font-weight:600;color:var(--text);flex:1;}
+.proj-meta{display:flex;gap:5px;flex-wrap:wrap;align-items:center;}
+.proj-prog-wrap{background:var(--border);border-radius:3px;height:3px;margin-bottom:6px;}
+.proj-prog-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--green),var(--blue));transition:width 0.3s;}
+.proj-tasks-list{list-style:none;margin-top:7px;}
+.proj-task{display:flex;align-items:flex-start;gap:7px;padding:5px 0;border-bottom:1px solid var(--border);font-size:0.75rem;color:var(--text2);}
+.proj-task:last-child{border-bottom:none;}
+.proj-notes{font-size:0.73rem;color:var(--text3);background:var(--surface2);border-radius:5px;padding:7px 10px;margin-top:7px;font-style:italic;border-left:2px solid var(--border2);}
+.proj-actions{display:flex;gap:5px;margin-top:8px;flex-wrap:wrap;}
+
+/* WEEK */
+.wday{background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:13px;margin-bottom:9px;}
+.wday.today{border-color:var(--green);}
+.wday-name{font-family:var(--mono);font-size:0.62rem;color:var(--green);text-transform:uppercase;letter-spacing:2px;margin-bottom:6px;display:flex;align-items:center;gap:6px;}
+.today-badge{background:var(--green);color:#000;font-size:0.48rem;padding:1px 5px;border-radius:3px;font-weight:700;}
+.wday-theme{font-size:0.82rem;font-weight:700;color:var(--text);margin-bottom:7px;}
+.wday-tasks{list-style:none;}
+.wday-tasks li{font-size:0.73rem;color:var(--text2);padding:2px 0;display:flex;gap:6px;line-height:1.4;}
+.wday-tasks li::before{content:'·';color:var(--green);flex-shrink:0;}
+
+/* NOTES (Notion-like) */
+.notes-sidebar{display:flex;gap:14px;height:calc(100vh - 200px);min-height:400px;}
+.notes-list{width:220px;flex-shrink:0;display:flex;flex-direction:column;gap:5px;overflow-y:auto;}
+.notes-list::-webkit-scrollbar{width:3px;}
+.notes-list::-webkit-scrollbar-thumb{background:var(--border2);}
+.note-item{padding:9px 11px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;cursor:pointer;transition:all 0.2s;}
+.note-item:hover,.note-item.active{border-color:var(--green);background:var(--green-dim);}
+.note-item-title{font-size:0.78rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.note-item-meta{font-size:0.62rem;color:var(--text3);margin-top:2px;font-family:var(--mono);}
+.note-item-tag{font-size:0.56rem;}
+.notes-editor{flex:1;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+.notes-editor-hdr{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.notes-editor-hdr input{background:transparent;border:none;color:var(--text);font-family:var(--sans);font-size:1rem;font-weight:700;outline:none;flex:1;min-width:150px;}
+.notes-editor-hdr input::placeholder{color:var(--text3);}
+.notes-toolbar{padding:6px 14px;border-bottom:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap;}
+.ntb-btn{background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--text2);padding:3px 8px;font-size:0.7rem;cursor:pointer;font-family:var(--mono);transition:all 0.2s;}
+.ntb-btn:hover{background:var(--surface3);color:var(--green);border-color:var(--green);}
+.notes-body{flex:1;padding:14px 16px;overflow-y:auto;}
+.notes-body::-webkit-scrollbar{width:3px;}
+.notes-body::-webkit-scrollbar-thumb{background:var(--border2);}
+.notes-content{width:100%;height:100%;min-height:300px;background:transparent;border:none;color:var(--text);font-family:var(--sans);font-size:0.83rem;line-height:1.7;resize:none;outline:none;}
+.notes-content::placeholder{color:var(--text3);}
+.notes-footer{padding:8px 16px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;font-size:0.65rem;color:var(--text3);font-family:var(--mono);}
+
+/* SCRIPTS */
+.script-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;}
+.script-hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px;flex-wrap:wrap;}
+.script-name{font-size:0.85rem;font-weight:700;color:var(--text);}
+.script-lang{font-family:var(--mono);font-size:0.6rem;}
+.script-desc{font-size:0.76rem;color:var(--text2);margin-bottom:8px;}
+.code-block{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;font-family:var(--mono);font-size:0.7rem;color:#a3e6c8;white-space:pre;overflow-x:auto;line-height:1.6;max-height:160px;overflow-y:auto;}
+.code-block::-webkit-scrollbar{height:3px;width:3px;}
+.code-block::-webkit-scrollbar-thumb{background:var(--border2);}
+
+/* EMAIL GEN */
+.email-form{display:flex;flex-direction:column;gap:10px;}
+.email-row{display:flex;gap:8px;flex-wrap:wrap;}
+.email-row>.inp,.email-row>select.inp{flex:1;min-width:180px;}
+.email-output{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;font-size:0.8rem;color:var(--text);line-height:1.7;white-space:pre-wrap;min-height:120px;font-family:var(--sans);}
+.loading-dots::after{content:'...';animation:dots 1s infinite;}
+@keyframes dots{0%{content:'.'}33%{content:'..'}66%{content:'...'}}
+
+/* OVERVIEW */
+.big-stat{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;text-align:center;}
+.big-num{font-size:2rem;font-weight:800;font-family:var(--mono);background:linear-gradient(90deg,var(--green),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.big-lbl{font-size:0.65rem;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-top:4px;font-family:var(--mono);}
+
+.role-block{display:flex;gap:10px;align-items:flex-start;padding:12px 0;border-bottom:1px solid var(--border);}
+.role-block:last-child{border-bottom:none;}
+.role-icon{font-size:1.2rem;flex-shrink:0;margin-top:2px;}
+.role-title{font-size:0.95rem;font-weight:700;color:var(--text);margin-bottom:5px;}
+.role-desc{font-size:0.88rem;color:var(--text2);line-height:1.7;}
+
+/* MODAL for new project/note/script */
+.modal-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:500;align-items:center;justify-content:center;}
+.modal-backdrop.open{display:flex;}
+.modal{background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:22px;width:min(460px,90vw);max-height:85vh;overflow-y:auto;}
+.modal h3{font-size:1rem;font-weight:700;margin-bottom:16px;color:var(--text);}
+.modal-row{margin-bottom:10px;}
+.modal-row label{display:block;font-size:0.7rem;color:var(--text3);margin-bottom:5px;font-family:var(--mono);text-transform:uppercase;letter-spacing:1px;}
+.modal-footer{display:flex;gap:8px;margin-top:16px;justify-content:flex-end;}
+
+textarea.inp{resize:vertical;min-height:80px;}
+
+/* IMPACT LOG */
+.impact-entry{background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:13px 15px;margin-bottom:8px;transition:border-color 0.2s;cursor:pointer;}
+.impact-entry:hover{border-color:var(--border2);}
+.impact-entry-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+.impact-title{font-size:0.88rem;font-weight:600;color:var(--text);flex:1;line-height:1.4;}
+.impact-result{font-size:0.8rem;color:var(--text2);margin-top:5px;line-height:1.5;}
+.impact-metric{display:inline-block;background:rgba(0,229,160,0.1);border:1px solid rgba(0,229,160,0.25);border-radius:4px;padding:2px 8px;font-family:var(--mono);font-size:0.62rem;color:var(--green);margin-top:5px;}
+.impact-footer{display:flex;align-items:center;gap:7px;margin-top:8px;flex-wrap:wrap;}
+.impact-date{font-family:var(--mono);font-size:0.58rem;color:var(--text3);}
+
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:10px;}
+
+@media(max-width:640px){
+  .notes-sidebar{flex-direction:column;height:auto;}
+  .notes-list{width:100%;max-height:180px;}
+  .main{padding:14px;}
+  .topbar,.nav{padding-left:14px;padding-right:14px;}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="logo-dot"></div>
+    <div class="logo-text">G. Williams · Sec Eng</div>
+  </div>
+  <div class="topbar-right">
+    <div id="live-date"></div>
+    <div id="live-clock"></div>
+    <div class="hamburger" id="hamburger" onclick="toggleMenu()">
+      <span></span><span></span><span></span>
+    </div>
+  </div>
+</div>
+
+<!-- MOBILE MENU -->
+<div class="mobile-menu" id="mobile-menu">
+  <button class="mobile-close" onclick="toggleMenu()">✕</button>
+  <button class="mobile-nav-btn" onclick="mobileNav('home')">🏠 Home</button>
+  <button class="mobile-nav-btn" onclick="mobileNav('today')">⚡ Today</button>
+  <button class="mobile-nav-btn" onclick="mobileNav('todo')">✅ To-Do</button>
+  <button class="mobile-nav-btn" onclick="mobileNav('day')">📅 Schedule</button>
+  <button class="mobile-nav-btn" onclick="mobileNav('week')">🗓️ Weekly</button>
+  <button class="mobile-nav-btn" onclick="mobileNav('domains')">🛡️ Domains</button>
+  <button class="mobile-nav-btn" onclick="mobileNav('notes')">📝 Notes</button>
+  <button class="mobile-nav-btn" onclick="mobileNav('scripts')">⚙️ Scripts</button>
+  <button class="mobile-nav-btn" onclick="mobileNav('email')">✉️ Email Gen</button>
+  <button class="mobile-nav-btn" onclick="mobileNav('asset')">⭐ Move Up</button>
+  <button class="mobile-nav-btn" onclick="mobileNav('impact')">🏆 Impact Log</button>
+</div>
+
+<!-- NAV -->
+<div class="nav">
+  <button class="nav-btn active" onclick="nav('home',this)">🏠 Home</button>
+  <button class="nav-btn" onclick="nav('today',this)">⚡ Today</button>
+  <button class="nav-btn" onclick="nav('todo',this)">✅ To-Do</button>
+  <button class="nav-btn" onclick="nav('day',this)">📅 Schedule</button>
+  <button class="nav-btn" onclick="nav('week',this)">🗓️ Weekly</button>
+  <button class="nav-btn" onclick="nav('domains',this)">🛡️ Domains</button>
+  <button class="nav-btn" onclick="nav('notes',this)">📝 Notes</button>
+  <button class="nav-btn" onclick="nav('scripts',this)">⚙️ Scripts</button>
+  <button class="nav-btn" onclick="nav('email',this)">✉️ Email Gen</button>
+  <button class="nav-btn" onclick="nav('asset',this)">⭐ Move Up</button>
+  <button class="nav-btn" onclick="nav('impact',this)">🏆 Impact Log</button>
+</div>
+
+<div class="main">
+
+<!-- ════════════════ HOME / ROLE OVERVIEW ════════════════ -->
+<div class="panel active" id="panel-home">
+  <div class="page-title">Gabriel Williams</div>
+  <div class="page-sub">Security Engineer · Avesis · Junior → Building Toward Mid-Level</div>
+
+  <div class="tip" style="padding:0;overflow:hidden;">
+    <div onclick="toggleBigPicture()" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:12px 16px;user-select:none;">
+      <span style="font-size:0.95rem;"><strong style="color:var(--green);">The Bigger Picture</strong> <span style="font-size:0.78rem;color:var(--text3);margin-left:8px;">— what your job actually means</span></span>
+      <span id="bp-chev" style="font-family:var(--mono);font-size:0.65rem;color:var(--text3);transition:transform 0.25s;">▼</span>
+    </div>
+    <div id="bp-body" style="display:none;padding:0 16px 14px;font-size:0.95rem;line-height:1.8;color:var(--text2);">
+      You are the person responsible for keeping Avesis's digital doors locked — deciding who gets in, what they can access, and making sure sensitive data never leaks out. Think of it like this: every employee at Avesis has a digital identity (their account, their passwords, their permissions). You control all of that. You decide who can access which systems, you catch it when someone's account gets hacked, and you make sure that when an employee leaves, their access disappears immediately. On top of that, Avesis handles healthcare data — Medicare and Medicaid patient information — which means if that data gets leaked, the company faces massive fines and legal trouble. Your DLP policies (Data Loss Prevention) and data labels are the guardrails that stop that from happening. Every day you work, you are doing the job that large companies pay specialized teams of people to do — and you're learning it hands-on at a junior level, which means you're building a rare and valuable skillset fast.
+    </div>
+  </div>
+
+  <div class="g4" style="margin-bottom:20px;">
+    <div class="big-stat"><div class="big-num">4</div><div class="big-lbl">Domains You Lead</div></div>
+    <div class="big-stat"><div class="big-num">6</div><div class="big-lbl">Active Initiatives</div></div>
+    <div class="big-stat"><div class="big-num">Q4</div><div class="big-lbl">Main Deadlines</div></div>
+    <div class="big-stat"><div class="big-num">3</div><div class="big-lbl">Teammates</div></div>
+  </div>
+
+  <div class="sec-label">What You Actually Do — The Bigger Picture</div>
+  <div class="card">
+    <div class="role-block">
+      <div class="role-icon">🆔</div>
+      <div>
+        <div class="role-title">Identity & Access Management (IAM) — Your Flagship Domain</div>
+        <div class="role-desc">You control WHO can access WHAT inside Avesis. Every user account, every permission, every authentication policy runs through you. If someone gets phished and their account is compromised, you are the one who detects and contains it via Entra ID. If a role has too much access, your access reviews catch it. IAM is one of the most critical functions in any security org — and you own it.</div>
+      </div>
+    </div>
+    <div class="role-block">
+      <div class="role-icon">🔒</div>
+      <div>
+        <div class="role-title">Endpoint Security — Device & Email Defense</div>
+        <div class="role-desc">You protect Avesis from threats that arrive via email and devices. Phishing emails, malware attachments, compromised laptops — these come through your queue. Defender for Office 365 and Intune are your tools. You're the frontline against the most common attack vectors used against organizations today.</div>
+      </div>
+    </div>
+    <div class="role-block">
+      <div class="role-icon">📊</div>
+      <div>
+        <div class="role-title">Data Protection (MS Purview) — Keeping Sensitive Data Safe</div>
+        <div class="role-desc">Avesis handles healthcare data (Medicare/Medicaid). That means HIPAA-adjacent data that could cause massive regulatory fines and reputational damage if leaked. Your DLP policies, sensitivity labels, and data retention configs are what stand between Avesis's sensitive data and the outside world. This is also what gets audited for SOC 2, HITRUST, and HIPAA compliance.</div>
+      </div>
+    </div>
+    <div class="role-block">
+      <div class="role-icon">⚠️</div>
+      <div>
+        <div class="role-title">Insider Risk + AI Data Security — Emerging Critical Domain</div>
+        <div class="role-desc">With Microsoft Copilot being adopted, you are responsible for ensuring AI doesn't expose sensitive data. This is a brand-new discipline that most engineers don't understand yet — putting you ahead of the curve. Insider risk covers threats from within: disgruntled employees, accidental data sharing, or departing employees exfiltrating data.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec-label">Your Initiatives & Deadlines</div>
+  <div class="card">
+    <div style="display:flex;flex-direction:column;gap:0;">
+      <div class="role-block">
+        <div style="flex:1"><span class="role-title">Endpoint Security (ongoing all year)</span> <span class="badge b-green" style="margin-left:6px;">PRIMARY LEAD</span> <span class="badge b-blue" style="margin-left:4px;">Q1–Q4 2026</span></div>
+      </div>
+      <div class="role-block">
+        <div style="flex:1"><span class="role-title">2025 SOC 2 Type II</span> <span class="badge b-purple" style="margin-left:6px;">SECONDARY</span> <span class="badge b-amber" style="margin-left:4px;">Q1 2026 ⚡</span></div>
+      </div>
+      <div class="role-block">
+        <div style="flex:1"><span class="role-title">Data Protection Regulatory Compliance</span> <span class="badge b-purple" style="margin-left:6px;">SECONDARY</span> <span class="badge b-blue" style="margin-left:4px;">Q4 2026</span></div>
+      </div>
+      <div class="role-block">
+        <div style="flex:1"><span class="role-title">HITRUST Security Assessment</span> <span class="badge b-purple" style="margin-left:6px;">SECONDARY</span> <span class="badge b-blue" style="margin-left:4px;">Q4 2026</span></div>
+      </div>
+      <div class="role-block">
+        <div style="flex:1"><span class="role-title">Data Security Posture Management for AI</span> <span class="badge b-purple" style="margin-left:6px;">SECONDARY</span> <span class="badge b-blue" style="margin-left:4px;">Q4 2026</span></div>
+      </div>
+      <div class="role-block" style="border:none;">
+        <div style="flex:1"><span class="role-title">Insider Risk Management</span> <span class="badge b-purple" style="margin-left:6px;">SECONDARY</span> <span class="badge b-blue" style="margin-left:4px;">Q4 2026</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec-label">Your Team</div>
+  <div class="g3">
+    <div class="card" style="text-align:center;">
+      <div style="font-size:1.5rem;margin-bottom:7px;">👨‍💼</div>
+      <div style="font-weight:700;font-size:0.88rem;">Aftab Hossain</div>
+      <div class="badge b-amber" style="margin-top:6px;display:inline-block;">Manager</div>
+      <div style="font-size:0.73rem;color:var(--text2);margin-top:7px;">Primary on most initiatives. Review with him weekly.</div>
+    </div>
+    <div class="card" style="text-align:center;border-color:var(--green-border);">
+      <div style="font-size:1.5rem;margin-bottom:7px;">⭐</div>
+      <div style="font-weight:700;font-size:0.88rem;">Gabriel Williams</div>
+      <div class="badge b-green" style="margin-top:6px;display:inline-block;">You · IAM + Endpoint Lead</div>
+      <div style="font-size:0.73rem;color:var(--text2);margin-top:7px;">IAM, Endpoint Security, Purview, Insider Risk</div>
+    </div>
+    <div class="card" style="text-align:center;">
+      <div style="font-size:1.5rem;margin-bottom:7px;">👨‍💻</div>
+      <div style="font-weight:700;font-size:0.88rem;">Erhan Saygin</div>
+      <div class="badge b-blue" style="margin-top:6px;display:inline-block;">Teammate</div>
+      <div style="font-size:0.73rem;color:var(--text2);margin-top:7px;">Exposure Mgmt, Cloud Security, Sentinel, MITRE</div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ TODAY ════════════════ -->
+<div class="panel" id="panel-today">
+  <div class="page-title">Today's Command Center</div>
+  <div class="page-sub" id="today-hdr">—</div>
+  <div class="g2" style="margin-bottom:18px;">
+    <div class="card" style="border-color:var(--green-border);">
+      <div style="font-family:var(--mono);font-size:0.58rem;color:var(--green);text-transform:uppercase;letter-spacing:2px;margin-bottom:5px;">Today's Focus</div>
+      <div id="today-focus" style="font-size:0.95rem;font-weight:700;"></div>
+      <div id="today-focus-sub" style="font-size:0.73rem;color:var(--text2);margin-top:3px;"></div>
+    </div>
+    <div class="card">
+      <div style="font-family:var(--mono);font-size:0.58rem;color:var(--green);text-transform:uppercase;letter-spacing:2px;margin-bottom:7px;">Todo Progress</div>
+      <div class="prog-lbl"><span id="t-prog-lbl">0 / 0</span><span id="t-prog-pct">0%</span></div>
+      <div class="prog-wrap"><div class="prog-fill" id="t-prog-bar" style="width:0%"></div></div>
+      <div style="font-size:0.7rem;color:var(--text3);margin-top:3px;" id="t-prog-rem">Add tasks to track</div>
+    </div>
+  </div>
+  <div class="sec-label">Open Tasks</div>
+  <div id="today-tasks"></div>
+  <div class="sec-label">Today's Schedule</div>
+  <div id="today-sched"></div>
+</div>
+
+<!-- ════════════════ TODO ════════════════ -->
+<div class="panel" id="panel-todo">
+  <div class="page-title">To-Do List</div>
+  <div class="page-sub">Saves automatically · Filter by domain or status</div>
+  <div class="todo-row">
+    <input class="inp" id="td-text" style="flex:2;min-width:200px;" placeholder="Add task... (press Enter)" onkeydown="if(event.key==='Enter')addTodo()">
+    <select class="inp" id="td-dom" style="min-width:130px;">
+      <option value="IAM">🆔 IAM</option>
+      <option value="Endpoint Security">🔒 Endpoint</option>
+      <option value="MS Purview">📊 Purview</option>
+      <option value="Insider Risk">⚠️ Insider Risk</option>
+      <option value="Learning">📚 Learning</option>
+      <option value="Other">⚙️ Other</option>
+    </select>
+    <select class="inp" id="td-pri" style="min-width:100px;">
+      <option value="high">🔴 High</option>
+      <option value="med" selected>🟡 Med</option>
+      <option value="low">🟢 Low</option>
+    </select>
+    <button class="btn btn-green" onclick="addTodo()">+ Add</button>
+  </div>
+  <div class="filter-row" id="todo-filters">
+    <button class="fbtn active" onclick="filterTodo('all',this)">All</button>
+    <button class="fbtn" onclick="filterTodo('active',this)">Active</button>
+    <button class="fbtn" onclick="filterTodo('done',this)">Done</button>
+    <button class="fbtn" onclick="filterTodo('IAM',this)">IAM</button>
+    <button class="fbtn" onclick="filterTodo('Endpoint Security',this)">Endpoint</button>
+    <button class="fbtn" onclick="filterTodo('MS Purview',this)">Purview</button>
+    <button class="fbtn" onclick="filterTodo('Insider Risk',this)">Insider Risk</button>
+    <button class="fbtn" onclick="filterTodo('Learning',this)">Learning</button>
+    <button class="fbtn" onclick="filterTodo('archive',this)">📦 Archive</button>
+  </div>
+  <div class="prog-lbl"><span id="todo-pl">0/0</span><span id="todo-pp">0%</span></div>
+  <div class="prog-wrap" style="margin-bottom:14px;"><div class="prog-fill" id="todo-pb" style="width:0%"></div></div>
+  <div id="todo-list"></div>
+  <div style="margin-top:10px;display:flex;gap:7px;flex-wrap:wrap;">
+    <button class="btn btn-ghost" style="font-size:0.73rem;" onclick="archiveDone()">📦 Archive Completed</button>
+    <button class="btn btn-ghost" style="font-size:0.73rem;color:var(--red);border-color:rgba(239,68,68,0.3);" onclick="clearDone()">🗑 Delete Completed</button>
+  </div>
+</div>
+
+<!-- ════════════════ DAILY SCHEDULE ════════════════ -->
+<div class="panel" id="panel-day">
+  <div class="page-title">Daily Schedule</div>
+  <div class="page-sub">Your exact daily structure — protect the deep work blocks</div>
+  <div class="tip"><strong>Rule:</strong> Reactive work (alerts, tickets, emails) happens in the 7–8AM window and EOD only. Guard your deep work blocks like calendar holds.</div>
+  <div id="day-sched"></div>
+</div>
+
+<!-- ════════════════ WEEKLY ════════════════ -->
+<div class="panel" id="panel-week">
+  <div class="page-title">Weekly Rhythm</div>
+  <div class="page-sub">Each day has a primary domain focus — go deep, not wide</div>
+  <div class="tip"><strong>Tip:</strong> Reactive work (alerts, tickets) happens every day at 7–8AM. These themes drive your main task blocks.</div>
+  <div id="week-days"></div>
+  <div class="sec-label">Monthly Recurring</div>
+  <div class="card">
+    <div class="stask"><div class="sdot"></div><div style="flex:1">Run formal Access Review in Entra ID Governance — export & document results</div><div class="sfreq">Monthly</div></div>
+    <div class="stask"><div class="sdot"></div><div style="flex:1">Full CA policy audit — check for gaps, overly permissive rules, sign-in failures</div><div class="sfreq">Monthly</div></div>
+    <div class="stask"><div class="sdot"></div><div style="flex:1">DLP incident report — share trends with Aftab in 1:1</div><div class="sfreq">Monthly</div></div>
+    <div class="stask"><div class="sdot"></div><div style="flex:1">Insider Risk monthly summary review in Purview</div><div class="sfreq">Monthly</div></div>
+    <div class="stask"><div class="sdot"></div><div style="flex:1">Update HITRUST control mapping progress tracker — note % improvement</div><div class="sfreq">Monthly</div></div>
+    <div class="stask"><div class="sdot"></div><div style="flex:1">Check Microsoft Secure Score — investigate drops, document wins</div><div class="sfreq">Monthly</div></div>
+    <div class="stask" style="border:none;"><div class="sdot"></div><div style="flex:1">Send Aftab monthly progress summary — owned, advanced, learned</div><div class="sfreq">Monthly</div></div>
+  </div>
+</div>
+
+<!-- ════════════════ DOMAINS ════════════════ -->
+<div class="panel" id="panel-domains">
+  <div class="page-title">My Domains & Tools</div>
+  <div class="page-sub">All 4 domains — tasks, tools, and projects under each</div>
+  <div class="tip"><strong>Primary Lead</strong> = you are the engineer. <strong>Secondary</strong> = you actively support under Aftab.</div>
+  <div id="domains-container"></div>
+</div>
+
+<!-- ════════════════ NOTES ════════════════ -->
+<div class="panel" id="panel-notes">
+  <div class="page-title">Notes</div>
+  <div class="page-sub">All your notes — meetings, domain work, study sessions, general</div>
+  <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+    <button class="btn btn-green" onclick="openNewNote()">+ New Note</button>
+    <select class="inp" id="note-cat-filter" style="max-width:180px;" onchange="renderNotesList()">
+      <option value="all">All Categories</option>
+      <option value="General">📋 General</option>
+      <option value="Meeting">🤝 Meeting</option>
+      <option value="Domain">🛡️ Domain</option>
+      <option value="Study">📚 Study</option>
+      <option value="1:1">👤 1:1 with Aftab</option>
+    </select>
+    <input class="inp" id="note-search" style="max-width:220px;" placeholder="Search notes..." oninput="renderNotesList()">
+  </div>
+  <div class="notes-sidebar">
+    <div class="notes-list" id="notes-list-panel"></div>
+    <div class="notes-editor" id="notes-editor">
+      <div class="notes-editor-hdr">
+        <input id="note-title-inp" placeholder="Note title..." oninput="saveCurrentNote()">
+        <select class="inp" id="note-cat-inp" style="max-width:140px;font-size:0.75rem;padding:5px 8px;" onchange="saveCurrentNote()">
+          <option value="General">📋 General</option>
+          <option value="Meeting">🤝 Meeting</option>
+          <option value="Domain">🛡️ Domain</option>
+          <option value="Study">📚 Study</option>
+          <option value="1:1">👤 1:1 with Aftab</option>
+        </select>
+        <button class="btn btn-red" style="font-size:0.73rem;padding:5px 10px;" onclick="deleteCurrentNote()">🗑</button>
+      </div>
+      <div class="notes-toolbar">
+        <button class="ntb-btn" onclick="insText('# ','')">H1</button>
+        <button class="ntb-btn" onclick="insText('## ','')">H2</button>
+        <button class="ntb-btn" onclick="insText('### ','')">H3</button>
+        <button class="ntb-btn" onclick="insText('**','**')"><b>B</b></button>
+        <button class="ntb-btn" onclick="insText('*','*')"><i>I</i></button>
+        <button class="ntb-btn" onclick="insText('\n- ','')">• List</button>
+        <button class="ntb-btn" onclick="insText('\n1. ','')">1. List</button>
+        <button class="ntb-btn" onclick="insText('\n> ','')">Quote</button>
+        <button class="ntb-btn" onclick="insText('\n---\n','')">Divider</button>
+        <button class="ntb-btn" onclick="insText('[ ] ','')">☐ Todo</button>
+        <button class="ntb-btn" onclick="insText('`','`')">Code</button>
+        <button class="ntb-btn" onclick="copyNote()">📋 Copy</button>
+      </div>
+      <div class="notes-body">
+        <textarea class="notes-content" id="note-body" placeholder="Start writing... Use toolbar above for formatting. Markdown supported.&#10;&#10;Tip: Use H1/H2/H3 for headers, bullet lists for tasks, and Divider to separate sections." oninput="saveCurrentNote()"></textarea>
+      </div>
+      <div class="notes-footer">
+        <span id="note-wc">0 words</span>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <span id="note-saved">—</span>
+          <button class="btn btn-green" style="padding:4px 12px;font-size:0.72rem;" onclick="saveCurrentNote(); document.getElementById('note-saved').textContent='✓ Saved';">💾 Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ SCRIPTS ════════════════ -->
+<div class="panel" id="panel-scripts">
+  <div class="page-title">Scripts & Tools Repository</div>
+  <div class="page-sub">Save and reference your PowerShell, KQL, Python, and other scripts</div>
+  <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+    <button class="btn btn-green" onclick="openNewScript()">+ Add Script</button>
+    <select class="inp" id="script-filter" style="max-width:160px;" onchange="renderScripts()">
+      <option value="all">All Languages</option>
+      <option value="PowerShell">PowerShell</option>
+      <option value="KQL">KQL</option>
+      <option value="Python">Python</option>
+      <option value="Bash">Bash</option>
+      <option value="Other">Other</option>
+    </select>
+    <input class="inp" id="script-search" style="max-width:220px;" placeholder="Search scripts..." oninput="renderScripts()">
+  </div>
+  <div id="scripts-container"></div>
+</div>
+
+<!-- ════════════════ EMAIL GEN ════════════════ -->
+<div class="panel" id="panel-email">
+  <div class="page-title">Email Generator</div>
+  <div class="page-sub">Template-based — works offline, generates instantly</div>
+  <div class="tip"><strong>Use this for:</strong> Escalation emails to Aftab, incident notifications, user security reminders, stakeholder updates, compliance requests, and more. Fill in context and the subject line generates automatically.</div>
+  <div class="g2">
+    <div>
+      <div class="email-form">
+        <div class="modal-row">
+          <label>Email Type</label>
+          <select class="inp" id="em-type" onchange="previewSubject()">
+            <option value="incident escalation">Incident Escalation to Manager</option>
+            <option value="user security reminder">User Security Reminder</option>
+            <option value="weekly status update">Weekly Status Update to Aftab</option>
+            <option value="access review notification">Access Review Notification</option>
+            <option value="phishing alert notification">Phishing Alert Notification</option>
+            <option value="compliance evidence request">Compliance Evidence Request</option>
+            <option value="policy violation notice">Policy Violation Notice</option>
+            <option value="onboarding security checklist">New User Security Onboarding</option>
+            <option value="custom">Custom (describe below)</option>
+          </select>
+        </div>
+        <div class="modal-row">
+          <label>To / Recipient Context</label>
+          <input class="inp" id="em-to" placeholder="e.g. Aftab, the IT team, a specific user...">
+        </div>
+        <div class="modal-row">
+          <label>Key Details / Context</label>
+          <textarea class="inp" id="em-ctx" placeholder="What happened? What do you need them to do? Any specific details, names, dates, systems?" style="min-height:90px;" oninput="previewSubject()"></textarea>
+        </div>
+        <div class="modal-row">
+          <label>Tone</label>
+          <select class="inp" id="em-tone">
+            <option value="professional">Professional</option>
+            <option value="urgent">Urgent</option>
+            <option value="friendly but firm">Friendly but Firm</option>
+            <option value="formal">Formal</option>
+          </select>
+        </div>
+        <div id="em-subject-preview" style="display:none;background:var(--green-dim);border:1px solid var(--green-border);border-radius:7px;padding:8px 12px;font-family:var(--mono);font-size:0.72rem;color:var(--green);margin-bottom:4px;"></div>
+        <button class="btn btn-green" style="width:100%;" onclick="generateEmail()">⚡ Generate Email</button>
+      </div>
+    </div>
+    <div>
+      <div style="font-family:var(--mono);font-size:0.58rem;color:var(--green);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px;">Generated Email</div>
+      <div id="em-output" class="email-output">Your generated email will appear here...</div>
+      <div style="margin-top:8px;display:flex;gap:7px;">
+        <button class="btn btn-ghost" style="font-size:0.73rem;" onclick="copyEmail()">📋 Copy</button>
+        <button class="btn btn-ghost" style="font-size:0.73rem;" onclick="clearEmail()">🗑 Clear</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ ASSET ════════════════ -->
+<div class="panel" id="panel-asset">
+  <div class="page-title">How to Move Up</div>
+  <div class="page-sub">Junior → Mid → Senior — the actions that separate those who get promoted</div>
+  <div class="tip"><strong>The formula:</strong> Own your domain completely + document everything + make Aftab's job easier + show visible progress. Do all four and you stand out fast at a junior level.</div>
+  <div class="sec-label">This Week — Do These Now</div>
+  <div class="card">
+    <div class="stask"><div class="sdot"></div><div style="flex:1">Open Purview Compliance Manager → screenshot your current score → this is your baseline</div></div>
+    <div class="stask"><div class="sdot"></div><div style="flex:1">Open Entra ID Governance → check for overdue Access Reviews → action them, then tell Aftab</div></div>
+    <div class="stask"><div class="sdot"></div><div style="flex:1">Create a "My Domains — Current State" note in the Notes tab → start documenting what's configured</div></div>
+    <div class="stask"><div class="sdot"></div><div style="flex:1">Ask Aftab: "What does excellent look like for my IAM/Endpoint domain by Q2?" → work backwards</div></div>
+    <div class="stask" style="border:none;"><div class="sdot"></div><div style="flex:1">Find 3 HITRUST controls that map to IAM or endpoint → document whether Avesis meets them → gap analysis started</div></div>
+  </div>
+  <div class="sec-label">Behaviors That Get You Promoted</div>
+  <div class="g2">
+    <div class="card"><div style="font-weight:700;margin-bottom:6px;">📋 Build Runbooks</div><div style="font-size:0.78rem;color:var(--text2);line-height:1.6;">For every recurring task, write a step-by-step guide. What you check, what triggers action, what you decide. Use the Notes tab for this. It proves expertise and protects you when questioned.</div></div>
+    <div class="card"><div style="font-weight:700;margin-bottom:6px;">📁 Proactive Evidence Folder</div><div style="font-size:0.78rem;color:var(--text2);line-height:1.6;">Don't wait for SOC 2/HITRUST auditors. Keep a live SharePoint folder with config screenshots, policy exports, and access review results. Hand Aftab a clean audit package — that's senior behavior.</div></div>
+    <div class="card"><div style="font-weight:700;margin-bottom:6px;">📈 Visible HITRUST Progress</div><div style="font-size:0.78rem;color:var(--text2);line-height:1.6;">Avesis is at ~11% HITRUST controls. Pick 5–10 per month in your domains. Showing "we went from 11% to 20% in my areas this quarter" is exactly what gets you promoted.</div></div>
+    <div class="card"><div style="font-weight:700;margin-bottom:6px;">📣 Weekly Update to Aftab</div><div style="font-size:0.78rem;color:var(--text2);line-height:1.6;">Every Friday: 3–4 bullets — completed, in progress, blocked, one thing learned. He doesn't have to ask. You look reliable, proactive, and trustworthy — the three things promotions are built on.</div></div>
+  </div>
+  <div class="sec-label">Certification Roadmap</div>
+  <div class="g3">
+    <div class="card" style="text-align:center;"><div style="font-size:1.3rem;margin-bottom:7px;">🏅</div><div style="font-weight:700;">SC-300</div><div style="font-size:0.73rem;color:var(--text2);margin:5px 0;">Identity & Access Admin — maps directly to your IAM domain</div><span class="badge b-green">Do First</span></div>
+    <div class="card" style="text-align:center;"><div style="font-size:1.3rem;margin-bottom:7px;">🏅</div><div style="font-weight:700;">SC-400</div><div style="font-size:0.73rem;color:var(--text2);margin:5px 0;">Information Protection Admin — maps to your Purview domain</div><span class="badge b-blue">Do Second</span></div>
+    <div class="card" style="text-align:center;"><div style="font-size:1.3rem;margin-bottom:7px;">🏅</div><div style="font-weight:700;">SC-200</div><div style="font-size:0.73rem;color:var(--text2);margin:5px 0;">Security Operations — adds Sentinel/XDR to your profile</div><span class="badge b-purple">Year 2</span></div>
+  </div>
+</div>
+<!-- ════════════════ IMPACT LOG ════════════════ -->
+<div class="panel" id="panel-impact">
+  <div class="page-title">🏆 Impact Log</div>
+  <div class="page-sub">Your running record of wins — builds your rap sheet automatically</div>
+
+  <div class="tip">
+    <strong>How to use this:</strong> Every time you fix something, improve something, implement something, or learn something worth noting — log it here with a number if you can. "Reviewed 12 risky users and blocked 3 compromised accounts" is 10x more powerful than "reviewed risky users." Over time this becomes your promotion case, your resume bullet points, and your performance review evidence — all in one place.
+  </div>
+
+  <!-- Quick add -->
+  <div class="card" style="border-color:var(--green-border);">
+    <div style="font-family:var(--mono);font-size:0.6rem;color:var(--green);text-transform:uppercase;letter-spacing:2px;margin-bottom:12px;">Log a New Win</div>
+    <div style="display:flex;flex-direction:column;gap:9px;">
+      <input class="inp" id="imp-title" placeholder="What did you do? (e.g. Blocked 3 compromised accounts via Entra ID risky user triage)" onkeydown="if(event.key==='Enter')document.getElementById('imp-result').focus()">
+      <textarea class="inp" id="imp-result" placeholder="What was the result or impact? (e.g. Prevented potential data breach, reduced active risk from High to None)" style="min-height:70px;resize:vertical;"></textarea>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <select class="inp" id="imp-domain" style="flex:1;min-width:130px;">
+          <option value="IAM">🆔 IAM</option>
+          <option value="Endpoint Security">🔒 Endpoint</option>
+          <option value="MS Purview">📊 Purview</option>
+          <option value="Insider Risk">⚠️ Insider Risk</option>
+          <option value="Compliance">✅ Compliance</option>
+          <option value="Learning">📚 Learning</option>
+          <option value="General">⚙️ General</option>
+        </select>
+        <select class="inp" id="imp-type" style="flex:1;min-width:130px;">
+          <option value="Security Win">🛡️ Security Win</option>
+          <option value="Improvement">📈 Improvement</option>
+          <option value="Compliance">✅ Compliance</option>
+          <option value="Automation">⚡ Automation/Script</option>
+          <option value="Incident Response">🚨 Incident Response</option>
+          <option value="Training">📚 Training/Learning</option>
+          <option value="Process">🔧 Process Built</option>
+          <option value="Collaboration">🤝 Collaboration</option>
+        </select>
+        <input class="inp" id="imp-metric" placeholder="Metric (e.g. 12 users, 30% reduction, 5 controls)" style="flex:1;min-width:160px;">
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="btn btn-green" onclick="addImpact()">+ Log This Win</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats row -->
+  <div class="g4" style="margin-bottom:20px;" id="impact-stats"></div>
+
+  <!-- Filter + Rap Sheet -->
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
+    <div class="filter-row" style="margin-bottom:0;" id="impact-filters">
+      <button class="fbtn active" onclick="filterImpact('all',this)">All</button>
+      <button class="fbtn" onclick="filterImpact('IAM',this)">IAM</button>
+      <button class="fbtn" onclick="filterImpact('Endpoint Security',this)">Endpoint</button>
+      <button class="fbtn" onclick="filterImpact('MS Purview',this)">Purview</button>
+      <button class="fbtn" onclick="filterImpact('Compliance',this)">Compliance</button>
+      <button class="fbtn" onclick="filterImpact('Learning',this)">Learning</button>
+    </div>
+    <div style="display:flex;gap:7px;">
+      <button class="btn btn-ghost" style="font-size:0.75rem;" onclick="generateRapSheet()">📄 Generate Rap Sheet</button>
+      <button class="btn btn-ghost" style="font-size:0.75rem;" onclick="copyRapSheet()">📋 Copy Rap Sheet</button>
+    </div>
+  </div>
+
+  <div id="impact-list"></div>
+
+  <!-- Rap Sheet output -->
+  <div id="rap-sheet-section" style="display:none;margin-top:20px;">
+    <div class="sec-label">Your Rap Sheet / Brag Doc</div>
+    <div class="tip" style="font-size:0.8rem;">Copy this and paste it into your performance review, LinkedIn, resume, or send to Aftab as a progress update.</div>
+    <div id="rap-sheet-output" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:18px;font-size:0.83rem;color:var(--text);line-height:1.8;white-space:pre-wrap;font-family:var(--sans);"></div>
+    <div style="margin-top:10px;display:flex;gap:7px;">
+      <button class="btn btn-green" onclick="copyRapSheet()">📋 Copy All</button>
+      <button class="btn btn-ghost" style="font-size:0.75rem;" onclick="document.getElementById('rap-sheet-section').style.display='none'">Hide</button>
+    </div>
+  </div>
+</div>
+
+</div><!-- end .main -->
+</div><!-- end .shell -->
+
+<!-- MODAL -->
+<div class="modal-backdrop" id="modal">
+  <div class="modal" id="modal-body"></div>
+</div>
+
+<script>
+// ═══════════════ STORAGE ═══════════════
+const S = {
+  get: k => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+  set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+
+function toggleBigPicture() {
+  const body = document.getElementById('bp-body');
+  const chev = document.getElementById('bp-chev');
+  const open = body.style.display === 'block';
+  body.style.display = open ? 'none' : 'block';
+  chev.textContent = open ? '▼' : '▲';
+}
+
+// ═══════════════ CLOCK ═══════════════
+function tick() {
+  const n = new Date();
+  document.getElementById('live-clock').textContent = n.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  document.getElementById('live-date').textContent = n.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+}
+tick(); setInterval(tick, 1000);
+
+// ═══════════════ NAV ═══════════════
+function nav(name, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  if (btn) btn.classList.add('active');
+  else document.querySelector(`.nav-btn[onclick*="'${name}'"]`)?.classList.add('active');
+  window.scrollTo({top:0,behavior:'smooth'});
+  if (name === 'today') refreshToday();
+  if (name === 'todo') renderTodos();
+  if (name === 'notes') renderNotesList();
+  if (name === 'scripts') renderScripts();
+  if (name === 'domains') renderDomains();
+  if (name === 'week') buildWeek();
+  if (name === 'day') buildDaySchedule();
+  if (name === 'impact') renderImpact();
+}
+
+// ═══════════════ MOBILE MENU ═══════════════
+function toggleMenu() {
+  document.getElementById('hamburger').classList.toggle('open');
+  document.getElementById('mobile-menu').classList.toggle('open');
+}
+function mobileNav(name) {
+  toggleMenu();
+  nav(name);
+}
+
+// ═══════════════ MODAL ═══════════════
+function openModal(html) {
+  document.getElementById('modal-body').innerHTML = html;
+  document.getElementById('modal').classList.add('open');
+}
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+document.getElementById('modal').addEventListener('click', e => { if (e.target === document.getElementById('modal')) closeModal(); });
+
+// ═══════════════ TODOS ═══════════════
+let todos = S.get('gw_todos_v4') || [];
+let todoArchive = S.get('gw_archive_v1') || [];
+let todoFilter = 'all';
+const priColors = { high: 'b-red', med: 'b-amber', low: 'b-green' };
+const domColors = { 'IAM': 'b-blue', 'Endpoint Security': 'b-green', 'MS Purview': 'b-purple', 'Insider Risk': 'b-red', 'Learning': 'b-cyan', 'Other': '' };
+
+function addTodo() {
+  const text = document.getElementById('td-text').value.trim();
+  if (!text) return;
+  todos.unshift({ id: Date.now(), text, desc: '', domain: document.getElementById('td-dom').value, priority: document.getElementById('td-pri').value, done: false, created: new Date().toISOString() });
+  S.set('gw_todos_v4', todos);
+  document.getElementById('td-text').value = '';
+  renderTodos();
+}
+
+function toggleTodo(id) {
+  const t = todos.find(x => x.id === id);
+  if (t) { t.done = !t.done; if (t.done) t.doneAt = new Date().toISOString(); S.set('gw_todos_v4', todos); renderTodos(); updateTodayProgress(); }
+}
+
+function deleteTodo(id) { todos = todos.filter(x => x.id !== id); S.set('gw_todos_v4', todos); renderTodos(); updateTodayProgress(); }
+
+function clearDone() {
+  if (!confirm('Permanently delete all completed tasks?')) return;
+  todos = todos.filter(x => !x.done); S.set('gw_todos_v4', todos); renderTodos(); updateTodayProgress();
+}
+
+function archiveDone() {
+  const done = todos.filter(t => t.done);
+  if (!done.length) { alert('No completed tasks to archive.'); return; }
+  todoArchive = [...done, ...todoArchive];
+  todos = todos.filter(t => !t.done);
+  S.set('gw_todos_v4', todos); S.set('gw_archive_v1', todoArchive);
+  renderTodos(); updateTodayProgress();
+  alert(`${done.length} task(s) archived. View them in the Archive filter.`);
+}
+
+function openTaskEditor(id, isArchive) {
+  const list = isArchive ? todoArchive : todos;
+  const t = list.find(x => x.id === id); if (!t) return;
+  openModal(`
+    <h3>${isArchive ? '📦 Archived Task' : '✏️ Edit Task'}</h3>
+    <div class="modal-row">
+      <label>Task Title</label>
+      <input class="inp" id="te-text" value="${(t.text||'').replace(/"/g,'&quot;')}" placeholder="Task title...">
+    </div>
+    <div class="modal-row">
+      <label>Description / Notes</label>
+      <textarea class="inp" id="te-desc" style="min-height:100px;" placeholder="Add instructions, context, links, steps...">${t.desc||''}</textarea>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <div class="modal-row" style="flex:1;min-width:130px;">
+        <label>Domain</label>
+        <select class="inp" id="te-dom">
+          ${['IAM','Endpoint Security','MS Purview','Insider Risk','Learning','Other'].map(d=>`<option ${d===t.domain?'selected':''}>${d}</option>`).join('')}
+        </select>
+      </div>
+      <div class="modal-row" style="flex:1;min-width:100px;">
+        <label>Priority</label>
+        <select class="inp" id="te-pri">
+          ${['high','med','low'].map(p=>`<option ${p===t.priority?'selected':''}>${p}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    ${isArchive ? `
+    <div class="modal-row">
+      <label>Status</label>
+      <div style="font-size:0.8rem;color:var(--text2);padding:6px 0;">
+        ✓ Completed ${t.doneAt ? new Date(t.doneAt).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'}) : ''}
+      </div>
+    </div>` : ''}
+    <div class="modal-footer" style="justify-content:space-between;flex-wrap:wrap;gap:8px;">
+      <div style="display:flex;gap:6px;">
+        ${isArchive
+          ? `<button class="btn btn-ghost" style="font-size:0.75rem;" onclick="restoreFromArchive(${id})">↩️ Restore to Active</button>`
+          : `<button class="btn btn-ghost" style="font-size:0.75rem;color:var(--red);border-color:rgba(239,68,68,0.3);" onclick="deleteTodo(${id});closeModal()">🗑 Delete</button>`
+        }
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-green" onclick="saveTaskEdit(${id}, ${isArchive})">💾 Save</button>
+      </div>
+    </div>`);
+}
+
+function saveTaskEdit(id, isArchive) {
+  const list = isArchive ? todoArchive : todos;
+  const t = list.find(x => x.id === id); if (!t) return;
+  t.text = document.getElementById('te-text').value.trim() || t.text;
+  t.desc = document.getElementById('te-desc').value;
+  t.domain = document.getElementById('te-dom').value;
+  t.priority = document.getElementById('te-pri').value;
+  if (isArchive) { S.set('gw_archive_v1', todoArchive); }
+  else { S.set('gw_todos_v4', todos); }
+  closeModal();
+  renderTodos();
+  updateTodayProgress();
+}
+
+function restoreFromArchive(id) {
+  const t = todoArchive.find(x => x.id === id); if (!t) return;
+  t.done = false; t.doneAt = null;
+  todoArchive = todoArchive.filter(x => x.id !== id);
+  todos.unshift(t);
+  S.set('gw_todos_v4', todos); S.set('gw_archive_v1', todoArchive);
+  closeModal();
+  // Switch filter to active so they see it
+  todoFilter = 'active';
+  document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('active'));
+  document.querySelector('.fbtn[onclick*="active"]')?.classList.add('active');
+  renderTodos();
+  updateTodayProgress();
+}
+
+function editTodoDesc(id) { openTaskEditor(id, false); }
+
+function filterTodo(f, btn) {
+  todoFilter = f;
+  document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTodos();
+}
+
+function renderTodos() {
+  const list = document.getElementById('todo-list'); if (!list) return;
+
+  // Archive view
+  if (todoFilter === 'archive') {
+    document.getElementById('todo-pl').textContent = `${todoArchive.length} archived`;
+    document.getElementById('todo-pp').textContent = '';
+    document.getElementById('todo-pb').style.width = '100%';
+    if (!todoArchive.length) { list.innerHTML = `<div class="empty">// no archived tasks yet — complete tasks and click "Archive Completed"</div>`; return; }
+    list.innerHTML = `<div style="font-family:var(--mono);font-size:0.6rem;color:var(--text3);margin-bottom:10px;text-transform:uppercase;letter-spacing:2px;">Completed Archive — ${todoArchive.length} items · Click any task to edit or restore</div>` +
+      todoArchive.map(t => `
+        <div class="todo-item" style="cursor:pointer;opacity:0.7;" onclick="openTaskEditor(${t.id}, true)">
+          <div class="todo-item-top">
+            <span style="color:var(--green);font-size:0.85rem;flex-shrink:0;margin-top:1px;">✓</span>
+            <div style="flex:1;">
+              <div class="todo-text" style="text-decoration:line-through;color:var(--text3);">${t.text}</div>
+              ${t.desc ? `<div class="todo-desc">📌 ${t.desc}</div>` : '<div class="todo-desc" style="color:var(--text3);">Click to add notes...</div>'}
+            </div>
+            <div class="todo-meta">
+              <span class="badge ${domColors[t.domain]||''}">${t.domain}</span>
+              <span class="badge ${priColors[t.priority]}">${t.priority}</span>
+              ${t.doneAt ? `<span style="font-family:var(--mono);font-size:0.58rem;color:var(--text3);">${new Date(t.doneAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>` : ''}
+            </div>
+          </div>
+        </div>`).join('');
+    return;
+  }
+
+  let filtered = todos;
+  if (todoFilter === 'active') filtered = todos.filter(t => !t.done);
+  else if (todoFilter === 'done') filtered = todos.filter(t => t.done);
+  else if (!['all','active','done'].includes(todoFilter)) filtered = todos.filter(t => t.domain === todoFilter);
+
+  const done = todos.filter(t => t.done).length;
+  const pct = todos.length ? Math.round(done/todos.length*100) : 0;
+  document.getElementById('todo-pl').textContent = `${done}/${todos.length}`;
+  document.getElementById('todo-pp').textContent = pct + '%';
+  document.getElementById('todo-pb').style.width = pct + '%';
+
+  if (!filtered.length) { list.innerHTML = `<div class="empty">${todos.length ? '// no tasks match filter' : '// empty queue — add a task above'}</div>`; return; }
+  list.innerHTML = filtered.map(t => `
+    <div class="todo-item ${t.done?'done':''}" style="cursor:pointer;" onclick="openTaskEditor(${t.id}, false)">
+      <div class="todo-item-top">
+        <div class="cb ${t.done?'chk':''}" onclick="event.stopPropagation(); toggleTodo(${t.id})"></div>
+        <div style="flex:1;">
+          <div class="todo-text">${t.text}</div>
+          ${t.desc ? `<div class="todo-desc">📌 ${t.desc}</div>` : `<div class="todo-desc" style="color:var(--text3);">Click to add notes or description...</div>`}
+        </div>
+        <div class="todo-meta">
+          <span class="badge ${domColors[t.domain]||''}">${t.domain}</span>
+          <span class="badge ${priColors[t.priority]}">${t.priority}</span>
+          <button class="del-btn" onclick="event.stopPropagation(); deleteTodo(${t.id})">✕</button>
+        </div>
+      </div>
+    </div>`).join('');
+  updateTodayProgress();
+}
+
+function updateTodayProgress() {
+  const done = todos.filter(t => t.done).length;
+  const pct = todos.length ? Math.round(done/todos.length*100) : 0;
+  const pb = document.getElementById('t-prog-bar'); if (pb) pb.style.width = pct + '%';
+  const pl = document.getElementById('t-prog-lbl'); if (pl) pl.textContent = `${done} / ${todos.length}`;
+  const pp = document.getElementById('t-prog-pct'); if (pp) pp.textContent = pct + '%';
+  const pr = document.getElementById('t-prog-rem'); if (pr) pr.textContent = todos.length ? `${todos.length - done} remaining` : 'Add tasks to track';
+}
+
+// ═══════════════ SCHEDULE & WEEKLY (EDITABLE) ═══════════════
+const defaultSchedBlocks = [
+  { id:'sb1', time:'7–8 AM',   title:'⚡ Daily Tasks + Quick Scripts', desc:'Queue checks: quarantine emails, risky users, Sentinel alerts. Small scripts, fast ticket fixes, urgent requests.', cls:'green' },
+  { id:'sb2', time:'8–9 AM',   title:'📚 Study Block',                 desc:'MS Learn, SC-300/400 prep, KQL practice, HITRUST reading. Non-negotiable daily growth time.', cls:'blue' },
+  { id:'sb3', time:'9–10:30',  title:'🔧 Main Task Block 1',           desc:'Deep work on your primary domain. CA policies, DLP rules, access reviews, Purview configs. One task, full focus.', cls:'purple' },
+  { id:'sb4', time:'10:30–12', title:'🤝 Meetings / Collaboration',    desc:'Syncs with Aftab, Erhan, James. If no meeting, use as a second deep work block.', cls:'purple' },
+  { id:'sb5', time:'12–1 PM',  title:'🚶 Lunch + Walk',                desc:'Step fully away from screens. Walk if possible. Recharge for afternoon focus.', cls:'gray' },
+  { id:'sb6', time:'1–2 PM',   title:'🔧 Main Task Block 2',           desc:'Initiative work: DSPM, Insider Risk, HITRUST mapping, evidence gathering, DLP tuning.', cls:'purple' },
+  { id:'sb7', time:'2–3 PM',   title:'🤝 Meetings / Collaboration 2',  desc:'Afternoon syncs or async comms. Batch Teams/email responses here.', cls:'purple' },
+  { id:'sb8', time:'3–4 PM',   title:'🧹 Clean-Up & Document',         desc:'Close tickets in Ivanti, document changes, screenshot evidence-worthy configurations.', cls:'amber' },
+  { id:'sb9', time:'4 PM',     title:'📋 4PM Meeting + EOD Wrap',      desc:'Standing meeting. After: mark todos, note blockers, final alert check, leave queue clean.', cls:'amber' },
+];
+const defaultDayData = [
+  { id:'d1', name:'Monday',    theme:'Identity & Access Day',       focus:'Entra ID deep dive — risky users, access reviews, CA policy check', tasks:['Review weekend risky users in Entra ID Protection','Action any overdue Access Reviews','Check CA policy report-only results','Plan the week — top 3 initiative tasks'] },
+  { id:'d2', name:'Tuesday',   theme:'Endpoint & Email Security Day', focus:'Defender deep dive — phishing trends, device compliance, ASR rules', tasks:['Deep review Defender for O365 — phishing trends, spoofed domains','Intune device compliance report — flag non-compliant devices','Review ASR rule hits — false positives?','Check Ninjio simulation results'] },
+  { id:'d3', name:'Wednesday', theme:'Data Protection & Purview Day', focus:'Purview deep dive — DLP, Insider Risk, Copilot exposure', tasks:['Review DLP policy match reports — tune as needed','Insider Risk dashboard — triage new alerts','Check sensitivity label adoption metrics','DSPM: review Copilot data exposure'] },
+  { id:'d4', name:'Thursday',  theme:'HITRUST & Documentation Day',  focus:'Gap analysis, evidence gathering, compliance tracking', tasks:['HITRUST gap: 2–3 controls, document current state vs. requirement','Gather SOC 2 evidence from week\'s work','Update compliance tracker','Review Compliance Manager score'] },
+  { id:'d5', name:'Friday',    theme:'Review, Learn & Report Day',   focus:'Weekly wrap, study, and Aftab update', tasks:['Write weekly summary for Aftab (3–4 bullets)','1-hour study: MS Learn / KQL / HITRUST','Review week alerts for patterns','Leave queue clean before weekend'] },
+  { id:'d6', name:'Saturday',  theme:'Rest Day',                     focus:'Recharge — security work is cognitively demanding', tasks:['Full rest and recharge','Optional: 30 min casual reading only','No work alerts unless emergency'] },
+  { id:'d7', name:'Sunday',    theme:'Light Prep Day',               focus:'Optional 30–45 min to start Monday strong', tasks:['Optional: review Monday priorities','Optional: one study session','Plan the week mentally'] },
+];
+
+let schedBlocks = S.get('gw_sched_v1') || JSON.parse(JSON.stringify(defaultSchedBlocks));
+let dayData     = S.get('gw_days_v1')  || JSON.parse(JSON.stringify(defaultDayData));
+
+function saveSchedule() { S.set('gw_sched_v1', schedBlocks); }
+function saveDays()     { S.set('gw_days_v1',  dayData); }
+
+// ── SCHEDULE EDIT ──
+function buildDaySchedule() {
+  const c = document.getElementById('day-sched'); if (!c) return;
+  const clsMap = { green:'var(--green)', blue:'var(--blue)', purple:'var(--purple)', amber:'var(--amber)', red:'var(--red)', gray:'var(--border2)' };
+  c.innerHTML = `
+    <div style="display:flex;justify-content:flex-end;margin-bottom:12px;gap:8px;">
+      <button class="btn btn-ghost" style="font-size:0.73rem;" onclick="addSchedBlock()">+ Add Block</button>
+      <button class="btn btn-ghost" style="font-size:0.73rem;" onclick="resetSchedule()">↺ Reset to Default</button>
+    </div>` +
+  schedBlocks.map((b,i) => `
+    <div class="sched-block" id="sblk-${b.id}" draggable="true"
+         ondragstart="dragSchedStart(event,'${b.id}')"
+         ondragover="event.preventDefault()"
+         ondrop="dragSchedDrop(event,'${b.id}')">
+      <div class="sched-time" style="cursor:default;">${b.time}</div>
+      <div class="sched-line">
+        <div class="sched-dot" style="border-color:${clsMap[b.cls]||'var(--green)'}"></div>
+        ${i<schedBlocks.length-1?'<div class="sched-conn"></div>':''}
+      </div>
+      <div class="sched-card ${b.cls}" style="cursor:pointer;" onclick="editSchedBlock('${b.id}')">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+          <div style="flex:1;">
+            <div class="sched-title">${b.title}</div>
+            <div class="sched-desc">${b.desc}</div>
+          </div>
+          <div style="display:flex;gap:4px;flex-shrink:0;">
+            <button class="del-btn" onclick="event.stopPropagation();moveSchedBlock('${b.id}',-1)" title="Move up" style="font-size:0.7rem;">↑</button>
+            <button class="del-btn" onclick="event.stopPropagation();moveSchedBlock('${b.id}',1)"  title="Move down" style="font-size:0.7rem;">↓</button>
+            <button class="del-btn" onclick="event.stopPropagation();deleteSchedBlock('${b.id}')" title="Delete" style="color:var(--red);">✕</button>
+          </div>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function editSchedBlock(id) {
+  const b = schedBlocks.find(x => x.id === id); if (!b) return;
+  openModal(`
+    <h3>✏️ Edit Time Block</h3>
+    <div class="modal-row"><label>Time</label>
+      <input class="inp" id="se-time" value="${b.time}" placeholder="e.g. 9–10:30 AM">
+    </div>
+    <div class="modal-row"><label>Title</label>
+      <input class="inp" id="se-title" value="${(b.title||'').replace(/"/g,'&quot;')}">
+    </div>
+    <div class="modal-row"><label>Description</label>
+      <textarea class="inp" id="se-desc" style="min-height:80px;">${b.desc||''}</textarea>
+    </div>
+    <div class="modal-row"><label>Color</label>
+      <select class="inp" id="se-cls">
+        ${['green','blue','purple','amber','red','gray'].map(c=>`<option value="${c}" ${c===b.cls?'selected':''}>${c}</option>`).join('')}
+      </select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-green" onclick="saveSchedBlock('${id}')">💾 Save</button>
+    </div>`);
+}
+
+function saveSchedBlock(id) {
+  const b = schedBlocks.find(x => x.id === id); if (!b) return;
+  b.time  = document.getElementById('se-time').value.trim() || b.time;
+  b.title = document.getElementById('se-title').value.trim() || b.title;
+  b.desc  = document.getElementById('se-desc').value;
+  b.cls   = document.getElementById('se-cls').value;
+  saveSchedule(); closeModal(); buildDaySchedule(); refreshToday();
+}
+
+function addSchedBlock() {
+  const newB = { id:'sb'+Date.now(), time:'New Time', title:'New Block', desc:'Describe this block...', cls:'green' };
+  schedBlocks.push(newB);
+  saveSchedule(); buildDaySchedule();
+  editSchedBlock(newB.id);
+}
+
+function deleteSchedBlock(id) {
+  if (!confirm('Delete this time block?')) return;
+  schedBlocks = schedBlocks.filter(x => x.id !== id);
+  saveSchedule(); buildDaySchedule(); refreshToday();
+}
+
+function moveSchedBlock(id, dir) {
+  const i = schedBlocks.findIndex(x => x.id === id);
+  const j = i + dir;
+  if (j < 0 || j >= schedBlocks.length) return;
+  [schedBlocks[i], schedBlocks[j]] = [schedBlocks[j], schedBlocks[i]];
+  saveSchedule(); buildDaySchedule();
+}
+
+let dragSchedId = null;
+function dragSchedStart(e, id) { dragSchedId = id; e.dataTransfer.effectAllowed = 'move'; }
+function dragSchedDrop(e, targetId) {
+  if (!dragSchedId || dragSchedId === targetId) return;
+  const fi = schedBlocks.findIndex(x => x.id === dragSchedId);
+  const ti = schedBlocks.findIndex(x => x.id === targetId);
+  const [moved] = schedBlocks.splice(fi, 1);
+  schedBlocks.splice(ti, 0, moved);
+  dragSchedId = null;
+  saveSchedule(); buildDaySchedule();
+}
+
+function resetSchedule() {
+  if (!confirm('Reset schedule to defaults? Your customizations will be lost.')) return;
+  schedBlocks = JSON.parse(JSON.stringify(defaultSchedBlocks));
+  saveSchedule(); buildDaySchedule(); refreshToday();
+}
+
+// ── WEEKLY EDIT ──
+function buildWeek() {
+  const n = new Date(); const ti = n.getDay();
+  const c = document.getElementById('week-days'); if (!c) return;
+  c.innerHTML = `
+    <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+      <button class="btn btn-ghost" style="font-size:0.73rem;" onclick="resetDays()">↺ Reset to Default</button>
+    </div>` +
+  dayData.map((d,i) => {
+    const dn = i===6?0:i+1; const isT = dn===ti;
+    return `
+    <div class="wday ${isT?'today':''}">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <div class="wday-name">${d.name}${isT?'<span class="today-badge">TODAY</span>':''}</div>
+        <button class="btn btn-ghost" style="font-size:0.65rem;padding:3px 8px;" onclick="editDay('${d.id}')">✏️ Edit</button>
+      </div>
+      <div class="wday-theme">${d.theme}</div>
+      <div style="font-size:0.72rem;color:var(--text3);margin-bottom:6px;font-style:italic;">${d.focus}</div>
+      <ul class="wday-tasks">
+        ${d.tasks.map((t,ti2) => `
+          <li>
+            <span style="flex:1;">${t}</span>
+            <button class="del-btn" onclick="deleteDayTask('${d.id}',${ti2})" style="font-size:0.65rem;flex-shrink:0;">✕</button>
+          </li>`).join('')}
+      </ul>
+      <button class="btn btn-ghost" style="font-size:0.65rem;padding:3px 8px;margin-top:8px;width:100%;" onclick="addDayTask('${d.id}')">+ Add Task</button>
+    </div>`;
+  }).join('');
+}
+
+function editDay(id) {
+  const d = dayData.find(x => x.id === id); if (!d) return;
+  openModal(`
+    <h3>✏️ Edit ${d.name}</h3>
+    <div class="modal-row"><label>Theme / Focus Title</label>
+      <input class="inp" id="de-theme" value="${(d.theme||'').replace(/"/g,'&quot;')}">
+    </div>
+    <div class="modal-row"><label>Focus Description</label>
+      <textarea class="inp" id="de-focus" style="min-height:70px;">${d.focus||''}</textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-green" onclick="saveDay('${id}')">💾 Save</button>
+    </div>`);
+}
+
+function saveDay(id) {
+  const d = dayData.find(x => x.id === id); if (!d) return;
+  d.theme = document.getElementById('de-theme').value.trim() || d.theme;
+  d.focus = document.getElementById('de-focus').value;
+  saveDays(); closeModal(); buildWeek(); refreshToday();
+}
+
+function addDayTask(id) {
+  openModal(`
+    <h3>+ Add Task</h3>
+    <div class="modal-row"><label>Task</label>
+      <input class="inp" id="dt-text" placeholder="e.g. Review Sentinel alerts" autofocus>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-green" onclick="saveDayTask('${id}')">Add</button>
+    </div>`);
+  setTimeout(()=>document.getElementById('dt-text')?.focus(),100);
+}
+
+function saveDayTask(id) {
+  const t = document.getElementById('dt-text')?.value.trim(); if (!t) return;
+  const d = dayData.find(x => x.id === id); if (!d) return;
+  d.tasks.push(t);
+  saveDays(); closeModal(); buildWeek();
+}
+
+function deleteDayTask(id, idx) {
+  const d = dayData.find(x => x.id === id); if (!d) return;
+  d.tasks.splice(idx, 1);
+  saveDays(); buildWeek();
+}
+
+function resetDays() {
+  if (!confirm('Reset weekly rhythm to defaults? Your customizations will be lost.')) return;
+  dayData = JSON.parse(JSON.stringify(defaultDayData));
+  saveDays(); buildWeek(); refreshToday();
+}
+
+function refreshToday() {
+  const n = new Date(); const di = n.getDay();
+  const day = dayData[di === 0 ? 6 : di - 1];
+  if (!day) return;
+  const hdr = document.getElementById('today-hdr');
+  if (hdr) hdr.textContent = n.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}) + ' · ' + day.name;
+  const tf = document.getElementById('today-focus'); if (tf) tf.textContent = day.theme;
+  const tfs = document.getElementById('today-focus-sub'); if (tfs) tfs.textContent = day.focus;
+  updateTodayProgress();
+  // tasks
+  const tt = document.getElementById('today-tasks');
+  if (tt) {
+    const active = todos.filter(t => !t.done);
+    tt.innerHTML = active.length ? active.slice(0,8).map(t => `
+      <div class="todo-item" style="margin-bottom:5px;cursor:pointer;" onclick="openTaskEditor(${t.id}, false)">
+        <div class="todo-item-top">
+          <div class="cb ${t.done?'chk':''}" onclick="event.stopPropagation(); toggleTodo(${t.id}); refreshToday();"></div>
+          <div style="flex:1;">
+            <div class="todo-text">${t.text}</div>
+            ${t.desc ? `<div class="todo-desc">📌 ${t.desc}</div>` : ''}
+          </div>
+          <div class="todo-meta">
+            <span class="badge ${domColors[t.domain]||''}">${t.domain}</span>
+            <span class="badge ${priColors[t.priority]}">${t.priority}</span>
+          </div>
+        </div>
+      </div>`).join('') + (active.length > 8 ? `<div style="font-size:0.72rem;color:var(--text3);padding:6px 0;">+${active.length-8} more in To-Do tab</div>` : '')
+    : `<div class="tip">No open tasks. Go to <strong>To-Do</strong> tab to add tasks.</div>`;
+  }
+  // schedule
+  const ts = document.getElementById('today-sched');
+  if (ts) ts.innerHTML = schedBlocks.map((b,i) => `
+    <div class="sched-block">
+      <div class="sched-time">${b.time}</div>
+      <div class="sched-line"><div class="sched-dot"></div>${i<schedBlocks.length-1?'<div class="sched-conn"></div>':''}</div>
+      <div class="sched-card ${b.cls}"><div class="sched-title">${b.title}</div><div class="sched-desc">${b.desc}</div></div>
+    </div>`).join('');
+}
+
+
+// ═══════════════ DOMAINS ═══════════════
+const domainsData = [
+  {
+    id: 'iam',
+    icon: '🆔', name: 'Identity & Access Management (IAM)', sub: 'Your flagship domain — who can access what at Avesis',
+    badge: 'PRIMARY LEAD', badgeCls: 'b-green', deadline: 'Q1–Q4 2026', deadlineCls: 'b-blue',
+    tasks: [
+      { name: 'Risky Users Dashboard', desc: 'Triage risky user/sign-in alerts in Entra ID Protection. Confirm or dismiss risk. Action: password reset, block, investigate.', freq: 'Daily' },
+      { name: 'User Creation & Role Assignments', desc: 'Create users in Entra ID with least-privilege roles. Assign groups per job function only. Offboard promptly: disable, revoke sessions, remove licenses.', freq: 'As needed' },
+      { name: 'Conditional Access Policies', desc: 'Maintain CA policies: MFA enforcement, compliant device requirements, block legacy auth. Test in report-only mode first.', freq: 'Weekly' },
+      { name: 'MFA & Authentication Methods', desc: 'Ensure MFA enforced org-wide. Review registration gaps. Handle exemption requests with Aftab approval.', freq: 'Weekly' },
+      { name: 'Access Review & Entitlement', desc: 'Run periodic access reviews via Entra Governance. Remove excessive permissions. Manage PIM for just-in-time admin access.', freq: 'Monthly' },
+      { name: 'ID Governance', desc: 'Access review cycles, entitlement management, privilege identity management. Document all reviews for SOC 2/HITRUST.', freq: 'Monthly' },
+      { name: 'ID Protection', desc: 'Monitor sign-in risk policies. Review and respond to risky sign-ins. Fine-tune detection thresholds.', freq: 'Weekly' },
+      { name: 'Global Secure Access', desc: 'Manage Zero Trust network access. Configure identity-aware proxy for app access. Part of Zero Trust Architecture initiative (Q3 2026).', freq: 'Weekly' },
+    ],
+    tools: [
+      { name: 'entra.microsoft.com', color: '#a855f7' }, { name: 'Entra ID Protection', color: '#3b82f6' },
+      { name: 'PIM (Privileged Identity Mgmt)', color: '#a855f7' }, { name: 'Entra ID Governance', color: '#00e5a0' },
+      { name: 'Global Secure Access', color: '#06b6d4' }, { name: 'Conditional Access', color: '#f59e0b' },
+    ]
+  },
+  {
+    id: 'endpoint',
+    icon: '🔒', name: 'Endpoint Security', sub: 'Email defense, device compliance, Defender — frontline threat protection',
+    badge: 'PRIMARY LEAD', badgeCls: 'b-green', deadline: 'Q1–Q4 2026', deadlineCls: 'b-blue',
+    tasks: [
+      { name: 'Quarantine Emails', desc: 'Review & release quarantine emails via Defender for Office 365. Validate threats vs. false positives. Document patterns: spoofed domains, repeat offenders.', freq: 'Daily' },
+      { name: 'Device Configuration (Intune)', desc: 'Maintain device compliance policies and ASR (Attack Surface Reduction) rules. Review device compliance reports, flag non-compliant devices.', freq: 'Weekly' },
+      { name: 'Email & Collaboration Policies', desc: 'Anti-phishing, anti-spam, safe links, safe attachments. Review policy hit reports and tune to reduce false positives.', freq: 'Weekly' },
+      { name: 'Defender for Endpoint Monitoring', desc: 'Review endpoint alerts in security.microsoft.com. Triage and escalate where needed. Note patterns for runbooks.', freq: 'Daily' },
+    ],
+    tools: [
+      { name: 'security.microsoft.com', color: '#3b82f6' }, { name: 'Defender for Office 365', color: '#f59e0b' },
+      { name: 'intune.microsoft.com', color: '#00e5a0' }, { name: 'MS Defender for Endpoint', color: '#ef4444' },
+      { name: 'Ninjio (awareness)', color: '#a855f7' },
+    ]
+  },
+  {
+    id: 'purview',
+    icon: '📊', name: 'MS Purview — Data Protection', sub: 'DLP, sensitivity labels, eDiscovery, lifecycle, DSPM for AI',
+    badge: 'SECONDARY LEAD', badgeCls: 'b-purple', deadline: 'Q4 2026', deadlineCls: 'b-blue',
+    tasks: [
+      { name: 'Data Loss Prevention (DLP)', desc: 'Build and maintain DLP policies across M365 (Exchange, SharePoint, Teams, OneDrive). Review weekly policy match reports. Tune false positives.', freq: 'Weekly' },
+      { name: 'Information Protection / Sensitivity Labels', desc: 'Implement sensitivity labels per Avesis data classification policy. Monitor label adoption. Align with SOC 2 and HITRUST.', freq: 'Weekly' },
+      { name: 'Data Life Cycle Management', desc: 'Manage retention schedules for M365 products. Align to Avesis retention policy (Medicare/Medicaid specific data).', freq: 'Monthly' },
+      { name: 'Compliance Manager', desc: 'Track compliance score in Purview. Identify control gaps. Assign improvement actions. Monitor score changes weekly.', freq: 'Weekly' },
+      { name: 'eDiscovery', desc: 'Run eDiscovery searches when legal or compliance requests arrive. Manage custodians and legal holds.', freq: 'As needed' },
+    ],
+    tools: [
+      { name: 'purview.microsoft.com', color: '#3b82f6' }, { name: 'Compliance Manager', color: '#a855f7' },
+      { name: 'DLP Policy Center', color: '#00e5a0' }, { name: 'Sensitivity Labels Admin', color: '#f59e0b' },
+      { name: 'eDiscovery Console', color: '#06b6d4' }, { name: 'Data Lifecycle', color: '#ef4444' },
+    ]
+  },
+  {
+    id: 'insider',
+    icon: '⚠️', name: 'Insider Risk & DSPM for AI', sub: 'Behavior monitoring, AI data exposure, least-privilege controls',
+    badge: 'SECONDARY LEAD', badgeCls: 'b-purple', deadline: 'Q4 2026', deadlineCls: 'b-blue',
+    tasks: [
+      { name: 'Insider Risk Management (IRM)', desc: 'Monitor IRM dashboard for risky behavior: data exfiltration, policy violations, mass downloads, departing employee activity. Triage and escalate.', freq: 'Weekly' },
+      { name: 'DSPM for AI (Copilot)', desc: 'Implement information protection controls in M365 Copilot. Ensure sensitivity labels prevent oversharing. Review data Copilot can access — flag overexposure.', freq: 'Weekly' },
+      { name: 'Least-Privilege & Data Controls', desc: 'Enforce least-privilege through Entra ID and Purview. Sensitive data accessible only to those who need it.', freq: 'Ongoing' },
+      { name: 'Security Awareness Reporting', desc: 'Review Ninjio phishing simulation results. Flag teams with poor completion rates to Aftab.', freq: 'Monthly' },
+    ],
+    tools: [
+      { name: 'Purview IRM', color: '#ef4444' }, { name: 'Purview DSPM', color: '#3b82f6' },
+      { name: 'Ninjio', color: '#00e5a0' }, { name: 'Ivanti (ticketing)', color: '#f59e0b' },
+    ]
+  }
+];
+
+let projects = S.get('gw_projects_v1') || {};
+
+function renderDomains() {
+  const c = document.getElementById('domains-container'); if (!c) return;
+  c.innerHTML = domainsData.map(d => buildDomainCard(d)).join('');
+}
+
+function buildDomainCard(d) {
+  const domProjs = projects[d.id] || [];
+  const projHTML = domProjs.map(p => buildProjectCard(d.id, p)).join('');
+  return `
+  <div class="dom-card" id="dom-${d.id}">
+    <div class="dom-hdr" onclick="toggleDom('${d.id}')">
+      <div class="dom-hdr-left">
+        <div class="dom-icon">${d.icon}</div>
+        <div><div class="dom-name">${d.name}</div><div class="dom-sub">${d.sub}</div></div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+        <span class="badge ${d.badgeCls}">${d.badge}</span>
+        <span class="badge ${d.deadlineCls}">${d.deadline}</span>
+        <span class="dom-chev" id="chev-${d.id}">▼</span>
+      </div>
+    </div>
+    <div class="dom-body" id="body-${d.id}">
+      <div style="font-family:var(--mono);font-size:0.58rem;color:var(--text3);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px;">Responsibilities</div>
+      ${d.tasks.map(t => `<div class="stask"><div class="sdot"></div><div style="flex:1"><strong>${t.name}</strong> — ${t.desc}</div><div class="sfreq">${t.freq}</div></div>`).join('')}
+      <div class="tool-grid">
+        <div style="font-family:var(--mono);font-size:0.56rem;color:var(--text3);width:100%;margin-bottom:4px;text-transform:uppercase;letter-spacing:1px;">Tools & Portals</div>
+        ${d.tools.map(t => `<div class="tc"><div class="tcd" style="background:${t.color}"></div>${t.name}</div>`).join('')}
+      </div>
+      <div class="proj-section">
+        <div class="proj-hdr">
+          <div style="font-family:var(--mono);font-size:0.58rem;color:var(--green);text-transform:uppercase;letter-spacing:2px;">Projects & Tasks</div>
+          <button class="btn btn-ghost" style="font-size:0.7rem;padding:4px 10px;" onclick="openNewProject('${d.id}')">+ Add Project</button>
+        </div>
+        <div id="projs-${d.id}">${projHTML || '<div style="font-size:0.75rem;color:var(--text3);padding:8px 0;">No projects yet. Add one from your 1:1s or initiative work.</div>'}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function buildProjectCard(domId, p) {
+  const pct = p.tasks && p.tasks.length ? Math.round(p.tasks.filter(t=>t.done).length/p.tasks.length*100) : (p.pct||0);
+  const statusColors = { 'Not Started':'b-red', 'In Progress':'b-amber', 'Blocked':'b-red', 'Done':'b-green', 'On Hold':'b-purple' };
+  return `
+  <div class="proj-card" id="proj-${p.id}">
+    <div class="proj-card-hdr">
+      <div class="proj-name">${p.name}</div>
+      <div class="proj-meta">
+        <span class="badge ${statusColors[p.status]||'b-blue'}">${p.status}</span>
+        ${p.deadline ? `<span class="badge b-amber">${p.deadline}</span>` : ''}
+        <span class="badge b-blue">${pct}%</span>
+      </div>
+    </div>
+    <div class="proj-prog-wrap"><div class="proj-prog-fill" style="width:${pct}%"></div></div>
+    ${p.desc ? `<div style="font-size:0.75rem;color:var(--text2);margin-bottom:7px;line-height:1.5;">${p.desc}</div>` : ''}
+    ${p.tasks && p.tasks.length ? `<ul class="proj-tasks-list">${p.tasks.map((t,ti) => `
+      <li class="proj-task">
+        <div class="cb ${t.done?'chk':''}" onclick="toggleProjTask('${domId}','${p.id}',${ti})" style="width:13px;height:13px;margin-top:1px;flex-shrink:0;"></div>
+        <span style="${t.done?'text-decoration:line-through;opacity:0.5;':''}">${t.text}</span>
+      </li>`).join('')}</ul>` : ''}
+    ${p.notes ? `<div class="proj-notes">${p.notes}</div>` : ''}
+    <div class="proj-actions">
+      <button class="btn btn-ghost" style="font-size:0.68rem;padding:4px 9px;" onclick="openEditProject('${domId}','${p.id}')">✏️ Edit</button>
+      <button class="btn btn-ghost" style="font-size:0.68rem;padding:4px 9px;" onclick="addProjTask('${domId}','${p.id}')">+ Task</button>
+      <button class="btn btn-red" style="font-size:0.68rem;padding:4px 9px;" onclick="deleteProject('${domId}','${p.id}')">🗑</button>
+    </div>
+  </div>`;
+}
+
+function toggleDom(id) {
+  const body = document.getElementById('body-' + id);
+  const chev = document.getElementById('chev-' + id);
+  body.classList.toggle('open');
+  chev.textContent = body.classList.contains('open') ? '▲' : '▼';
+}
+
+function openNewProject(domId) {
+  openModal(`
+    <h3>New Project — ${domainsData.find(d=>d.id===domId)?.name}</h3>
+    <div class="modal-row"><label>Project Name</label><input class="inp" id="m-pname" placeholder="e.g. HITRUST Gap Analysis Q2"></div>
+    <div class="modal-row"><label>Status</label>
+      <select class="inp" id="m-pstatus">
+        <option>Not Started</option><option selected>In Progress</option><option>Blocked</option><option>Done</option><option>On Hold</option>
+      </select></div>
+    <div class="modal-row"><label>Deadline (optional)</label><input class="inp" id="m-pdeadline" placeholder="e.g. Q2 2026 or May 30"></div>
+    <div class="modal-row"><label>Description</label><textarea class="inp" id="m-pdesc" placeholder="What is this project about? Goals from your 1:1?"></textarea></div>
+    <div class="modal-row"><label>Notes / Manager Feedback</label><textarea class="inp" id="m-pnotes" placeholder="Notes from 1:1 with Aftab, blockers, context..."></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-green" onclick="saveNewProject('${domId}')">Save Project</button>
+    </div>`);
+}
+
+function saveNewProject(domId) {
+  const name = document.getElementById('m-pname').value.trim();
+  if (!name) return;
+  if (!projects[domId]) projects[domId] = [];
+  projects[domId].push({
+    id: 'p' + Date.now(), name,
+    status: document.getElementById('m-pstatus').value,
+    deadline: document.getElementById('m-pdeadline').value,
+    desc: document.getElementById('m-pdesc').value,
+    notes: document.getElementById('m-pnotes').value,
+    tasks: [], pct: 0
+  });
+  S.set('gw_projects_v1', projects);
+  closeModal();
+  rerenderDomainKeepOpen(domId);
+}
+
+function updateProject(domId, projId) {
+  const p = projects[domId]?.find(x => x.id === projId); if (!p) return;
+  p.name = document.getElementById('m-pname').value;
+  p.status = document.getElementById('m-pstatus').value;
+  p.deadline = document.getElementById('m-pdeadline').value;
+  p.desc = document.getElementById('m-pdesc').value;
+  p.notes = document.getElementById('m-pnotes').value;
+  S.set('gw_projects_v1', projects);
+  closeModal();
+  rerenderDomainKeepOpen(domId);
+}
+
+function openEditProject(domId, projId) {
+  const p = projects[domId]?.find(x => x.id === projId); if (!p) return;
+  openModal(`
+    <h3>Edit Project</h3>
+    <div class="modal-row"><label>Name</label><input class="inp" id="m-pname" value="${p.name}"></div>
+    <div class="modal-row"><label>Status</label>
+      <select class="inp" id="m-pstatus">
+        ${['Not Started','In Progress','Blocked','Done','On Hold'].map(s=>`<option ${s===p.status?'selected':''}>${s}</option>`).join('')}
+      </select></div>
+    <div class="modal-row"><label>Deadline</label><input class="inp" id="m-pdeadline" value="${p.deadline||''}"></div>
+    <div class="modal-row"><label>Description</label><textarea class="inp" id="m-pdesc">${p.desc||''}</textarea></div>
+    <div class="modal-row"><label>Notes / Manager Feedback</label><textarea class="inp" id="m-pnotes">${p.notes||''}</textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-green" onclick="updateProject('${domId}','${projId}')">Update</button>
+    </div>`);
+}
+
+function addProjTask(domId, projId) {
+  openModal(`
+    <h3>Add Task to Project</h3>
+    <div class="modal-row"><label>Task Description</label>
+      <input class="inp" id="m-ptask" placeholder="e.g. Map IAM controls to HITRUST requirements" autofocus>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-green" onclick="saveProjTask('${domId}','${projId}')">Add Task</button>
+    </div>`);
+  setTimeout(() => document.getElementById('m-ptask')?.focus(), 100);
+}
+
+function saveProjTask(domId, projId) {
+  const text = document.getElementById('m-ptask')?.value?.trim();
+  if (!text) return;
+  const p = projects[domId]?.find(x => x.id === projId); if (!p) return;
+  if (!p.tasks) p.tasks = [];
+  p.tasks.push({ text, done: false });
+  S.set('gw_projects_v1', projects);
+  closeModal();
+  rerenderDomainKeepOpen(domId);
+}
+
+function rerenderDomainKeepOpen(domId) {
+  const domainEl = document.getElementById('dom-' + domId);
+  if (!domainEl) { renderDomains(); return; }
+  const d = domainsData.find(x => x.id === domId);
+  if (!d) return;
+  domainEl.outerHTML = buildDomainCard(d);
+  // Re-attach and open
+  const newEl = document.getElementById('dom-' + domId);
+  const body = document.getElementById('body-' + domId);
+  const chev = document.getElementById('chev-' + domId);
+  if (body) body.classList.add('open');
+  if (chev) chev.textContent = '▲';
+}
+
+function toggleProjTask(domId, projId, idx) {
+  const p = projects[domId]?.find(x => x.id === projId); if (!p) return;
+  p.tasks[idx].done = !p.tasks[idx].done;
+  S.set('gw_projects_v1', projects);
+  rerenderDomainKeepOpen(domId);
+}
+
+function deleteProject(domId, projId) {
+  if (!confirm('Delete this project?')) return;
+  projects[domId] = projects[domId].filter(x => x.id !== projId);
+  S.set('gw_projects_v1', projects);
+  rerenderDomainKeepOpen(domId);
+}
+
+// ═══════════════ NOTES ═══════════════
+let notes = S.get('gw_notes_v1') || [];
+let currentNoteId = null;
+const catColors = { 'General':'b-blue', 'Meeting':'b-green', 'Domain':'b-purple', '1:1':'b-amber', 'Study':'b-cyan' };
+
+function openNewNote() {
+  const n = { id: 'n'+Date.now(), title: 'Untitled Note', body: '', category: 'General', updated: Date.now() };
+  notes.unshift(n);
+  S.set('gw_notes_v1', notes);
+  currentNoteId = n.id;
+  renderNotesList();
+  loadNote(n.id);
+}
+
+function renderNotesList() {
+  const c = document.getElementById('notes-list-panel'); if (!c) return;
+  const cat = document.getElementById('note-cat-filter')?.value || 'all';
+  const q = document.getElementById('note-search')?.value?.toLowerCase() || '';
+  let filtered = notes;
+  if (cat !== 'all') filtered = filtered.filter(n => n.category === cat);
+  if (q) filtered = filtered.filter(n => n.title.toLowerCase().includes(q) || n.body.toLowerCase().includes(q));
+  if (!filtered.length) { c.innerHTML = `<div class="empty" style="padding:16px;font-size:0.72rem;">No notes</div>`; return; }
+  c.innerHTML = filtered.map(n => `
+    <div class="note-item ${n.id===currentNoteId?'active':''}" onclick="loadNote('${n.id}')">
+      <div class="note-item-title">${n.title || 'Untitled'}</div>
+      <div class="note-item-meta">
+        <span class="badge ${catColors[n.category]||''}" style="font-size:0.52rem;">${n.category}</span>
+        <span style="margin-left:5px;">${new Date(n.updated).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>
+      </div>
+    </div>`).join('');
+}
+
+function loadNote(id) {
+  const n = notes.find(x => x.id === id); if (!n) return;
+  currentNoteId = id;
+  document.getElementById('note-title-inp').value = n.title;
+  document.getElementById('note-cat-inp').value = n.category;
+  document.getElementById('note-body').value = n.body;
+  updateNoteWordCount();
+  renderNotesList();
+}
+
+function saveCurrentNote() {
+  if (!currentNoteId) return;
+  const n = notes.find(x => x.id === currentNoteId); if (!n) return;
+  n.title = document.getElementById('note-title-inp').value || 'Untitled';
+  n.category = document.getElementById('note-cat-inp').value;
+  n.body = document.getElementById('note-body').value;
+  n.updated = Date.now();
+  S.set('gw_notes_v1', notes);
+  document.getElementById('note-saved').textContent = 'Saved ' + new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+  updateNoteWordCount();
+  renderNotesList();
+}
+
+function deleteCurrentNote() {
+  if (!currentNoteId) return;
+  if (!confirm('Delete this note?')) return;
+  notes = notes.filter(x => x.id !== currentNoteId);
+  currentNoteId = null;
+  S.set('gw_notes_v1', notes);
+  document.getElementById('note-title-inp').value = '';
+  document.getElementById('note-body').value = '';
+  document.getElementById('note-saved').textContent = '—';
+  renderNotesList();
+}
+
+function insText(before, after) {
+  const ta = document.getElementById('note-body');
+  const s = ta.selectionStart, e = ta.selectionEnd;
+  const sel = ta.value.substring(s, e);
+  ta.value = ta.value.substring(0, s) + before + sel + after + ta.value.substring(e);
+  ta.selectionStart = s + before.length;
+  ta.selectionEnd = s + before.length + sel.length;
+  ta.focus(); saveCurrentNote();
+}
+
+function copyNote() {
+  const body = document.getElementById('note-body').value;
+  navigator.clipboard.writeText(body).then(() => {
+    document.getElementById('note-saved').textContent = 'Copied!';
+    setTimeout(() => document.getElementById('note-saved').textContent = 'Saved', 1500);
+  });
+}
+
+function updateNoteWordCount() {
+  const body = document.getElementById('note-body')?.value || '';
+  const wc = body.trim() ? body.trim().split(/\s+/).length : 0;
+  const el = document.getElementById('note-wc'); if (el) el.textContent = wc + ' words';
+}
+
+// ═══════════════ SCRIPTS ═══════════════
+let scripts = S.get('gw_scripts_v1') || [
+  { id: 's1', name: 'Get Risky Users Report', lang: 'PowerShell', desc: 'Pull all risky users from Entra ID Protection via MS Graph', tags: 'IAM,identity', code: `# Get risky users from Entra ID\nConnect-MgGraph -Scopes "IdentityRiskyUser.Read.All"\n\n$riskyUsers = Get-MgRiskyUser -Filter "riskState eq 'atRisk'" |\n  Select-Object UserPrincipalName, RiskLevel, RiskState, RiskDetail\n\n$riskyUsers | Export-Csv "RiskyUsers_$(Get-Date -f yyyyMMdd).csv" -NoTypeInformation\nWrite-Host "Exported $($riskyUsers.Count) risky users"` },
+  { id: 's2', name: 'Entra ID Stale Account Finder', lang: 'PowerShell', desc: 'Find accounts that have not signed in for 90+ days', tags: 'IAM,cleanup', code: `# Find stale accounts (90+ days no sign-in)\nConnect-MgGraph -Scopes "User.Read.All","AuditLog.Read.All"\n\n$cutoff = (Get-Date).AddDays(-90)\n$stale = Get-MgUser -All -Property "DisplayName,UserPrincipalName,SignInActivity" |\n  Where-Object { $_.SignInActivity.LastSignInDateTime -lt $cutoff }\n\n$stale | Select DisplayName, UserPrincipalName, \n  @{N='LastSignIn';E={$_.SignInActivity.LastSignInDateTime}} |\n  Export-Csv "StaleAccounts.csv" -NoTypeInformation` },
+  { id: 's3', name: 'DLP Policy Match Report (KQL)', lang: 'KQL', desc: 'Query DLP policy matches in Sentinel/Defender', tags: 'Purview,DLP', code: `// DLP policy match events - last 7 days\nDLPAllPolicyMatchAuditLogs\n| where TimeGenerated > ago(7d)\n| summarize Matches = count() by PolicyName, bin(TimeGenerated, 1d)\n| order by TimeGenerated desc\n| render timechart` },
+  { id: 's4', name: 'CA Policy Sign-in Failure Report (KQL)', lang: 'KQL', desc: 'Identify sign-in failures caused by Conditional Access', tags: 'IAM,CA', code: `// CA-blocked sign-ins - last 24h\nSigninLogs\n| where TimeGenerated > ago(24h)\n| where ResultType != 0\n| where ConditionalAccessStatus == "failure"\n| summarize Count = count() by UserPrincipalName, AppDisplayName, \n  ConditionalAccessPolicies, bin(TimeGenerated, 1h)\n| order by Count desc` },
+];
+
+function renderScripts() {
+  const c = document.getElementById('scripts-container'); if (!c) return;
+  const lang = document.getElementById('script-filter')?.value || 'all';
+  const q = document.getElementById('script-search')?.value?.toLowerCase() || '';
+  let filtered = scripts;
+  if (lang !== 'all') filtered = filtered.filter(s => s.lang === lang);
+  if (q) filtered = filtered.filter(s => s.name.toLowerCase().includes(q) || s.desc.toLowerCase().includes(q) || s.tags.toLowerCase().includes(q));
+  const langColors = { PowerShell:'b-blue', KQL:'b-purple', Python:'b-green', Bash:'b-amber', Other:'b-cyan' };
+  if (!filtered.length) { c.innerHTML = `<div class="empty">No scripts found</div>`; return; }
+  c.innerHTML = filtered.map(s => `
+    <div class="script-card">
+      <div class="script-hdr">
+        <div>
+          <div class="script-name">${s.name}</div>
+          <div style="display:flex;gap:5px;margin-top:4px;flex-wrap:wrap;">
+            <span class="badge ${langColors[s.lang]||''}">${s.lang}</span>
+            ${s.tags.split(',').map(t=>`<span class="badge b-blue">${t.trim()}</span>`).join('')}
+          </div>
+        </div>
+        <div style="display:flex;gap:5px;">
+          <button class="btn btn-ghost" style="font-size:0.68rem;padding:4px 8px;" onclick="copyScript('${s.id}')">📋 Copy</button>
+          <button class="btn btn-red" style="font-size:0.68rem;padding:4px 8px;" onclick="deleteScript('${s.id}')">🗑</button>
+        </div>
+      </div>
+      <div class="script-desc">${s.desc}</div>
+      <div class="code-block">${escHtml(s.code)}</div>
+    </div>`).join('');
+}
+
+function escHtml(t) { return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function copyScript(id) {
+  const s = scripts.find(x => x.id === id); if (!s) return;
+  navigator.clipboard.writeText(s.code);
+}
+
+function deleteScript(id) {
+  if (!confirm('Delete this script?')) return;
+  scripts = scripts.filter(x => x.id !== id);
+  S.set('gw_scripts_v1', scripts);
+  renderScripts();
+}
+
+function openNewScript() {
+  openModal(`
+    <h3>Add Script / Tool</h3>
+    <div class="modal-row"><label>Name</label><input class="inp" id="m-sname" placeholder="e.g. Risky User Bulk Dismiss"></div>
+    <div class="modal-row"><label>Language</label>
+      <select class="inp" id="m-slang">
+        <option>PowerShell</option><option>KQL</option><option>Python</option><option>Bash</option><option>Other</option>
+      </select></div>
+    <div class="modal-row"><label>Description</label><input class="inp" id="m-sdesc" placeholder="What does this do?"></div>
+    <div class="modal-row"><label>Tags (comma separated)</label><input class="inp" id="m-stags" placeholder="IAM, Purview, DLP..."></div>
+    <div class="modal-row"><label>Code</label><textarea class="inp" id="m-scode" style="min-height:140px;font-family:var(--mono);font-size:0.72rem;" placeholder="Paste your script here..."></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-green" onclick="saveNewScript()">Save Script</button>
+    </div>`);
+}
+
+function saveNewScript() {
+  const name = document.getElementById('m-sname').value.trim();
+  if (!name) return;
+  scripts.unshift({ id: 's'+Date.now(), name, lang: document.getElementById('m-slang').value, desc: document.getElementById('m-sdesc').value, tags: document.getElementById('m-stags').value, code: document.getElementById('m-scode').value });
+  S.set('gw_scripts_v1', scripts);
+  closeModal(); renderScripts();
+}
+
+// ═══════════════ EMAIL GEN ═══════════════
+function previewSubject() {
+  const type = document.getElementById('em-type')?.value || '';
+  const ctx  = document.getElementById('em-ctx')?.value.trim() || '';
+  const sp   = document.getElementById('em-subject-preview'); if (!sp) return;
+  const snippet = ctx ? ctx.split(' ').slice(0,5).join(' ') + (ctx.split(' ').length > 5 ? '...' : '') : '';
+  const subjects = {
+    'incident escalation':        `[ESCALATION] Security Incident${snippet ? ' — ' + snippet : ''}`,
+    'user security reminder':     `Security Reminder — Action Required`,
+    'weekly status update':       `Weekly Security Update — ${new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'})}`,
+    'access review notification': `Action Required — Access Review Due`,
+    'phishing alert notification':`[SECURITY ALERT] Phishing Campaign Detected`,
+    'compliance evidence request':`Compliance Evidence Request${snippet ? ' — ' + snippet : ''}`,
+    'policy violation notice':    `Security Policy Notice — Action Required`,
+    'onboarding security checklist':'Welcome to Avesis — Security Onboarding Checklist',
+    'custom':                     `Security Communication — Avesis`,
+  };
+  const subj = subjects[type] || 'Security Communication — Avesis';
+  sp.textContent = '📧 Subject preview: ' + subj;
+  sp.style.display = 'block';
+}
+
+function generateEmail() {
+  const type  = document.getElementById('em-type').value;
+  const to    = document.getElementById('em-to').value.trim();
+  const ctx   = document.getElementById('em-ctx').value.trim();
+  const tone  = document.getElementById('em-tone').value;
+  const out   = document.getElementById('em-output');
+
+  if (!ctx) { out.textContent = 'Please fill in the Key Details / Context field first.'; return; }
+
+  const date    = new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  const toLine  = to || 'Team';
+  const toneMap = {
+    'professional':    { open:'I hope this message finds you well.',        sign:'Best regards,' },
+    'urgent':          { open:'I am reaching out regarding an urgent matter that requires immediate attention.', sign:'Urgently,' },
+    'friendly but firm':{ open:'Hope you\'re doing well — wanted to flag something important.', sign:'Thanks,' },
+    'formal':          { open:'I am writing to formally bring the following matter to your attention.', sign:'Respectfully,' },
+  };
+  const t = toneMap[tone] || toneMap['professional'];
+
+  let subject = '';
+  let body = '';
+
+  const templates = {
+    'incident escalation': () => {
+      subject = `[ESCALATION] Security Incident — ${ctx.split(' ').slice(0,5).join(' ')}`;
+      body = `${t.open}
+
+I am writing to escalate a security incident that requires your attention and guidance.
+
+Incident Summary:
+${ctx}
+
+Current Status:
+I have begun initial triage and containment steps. I need your input on next steps and whether this warrants broader escalation or notification.
+
+Requested Action:
+Please review the above and advise on escalation path, communications to stakeholders, and any additional containment measures.
+
+I am available to discuss immediately.
+
+${t.sign}
+Gabriel Williams
+Security Engineer — Avesis
+Tools involved: MS Sentinel, MS Defender, Entra ID`;
+    },
+    'user security reminder': () => {
+      subject = `Security Reminder — Action Required`;
+      body = `${t.open}
+
+This is a friendly reminder regarding an important security requirement.
+
+${ctx}
+
+Why this matters:
+Keeping our systems secure protects both you and Avesis from threats like phishing, account compromise, and data loss.
+
+What you need to do:
+Please complete the required action as soon as possible. If you have any questions or are experiencing issues, reply to this email and I will assist you directly.
+
+Thank you for helping keep Avesis secure.
+
+${t.sign}
+Gabriel Williams
+Security Engineer — Avesis`;
+    },
+    'weekly status update': () => {
+      subject = `Weekly Security Update — ${new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'})}`;
+      body = `Hi Aftab,
+
+Here's my weekly status update:
+
+${ctx}
+
+Upcoming focus for next week:
+- Continue progress on current initiatives
+- Address any open items from this week
+- [Add specific tasks]
+
+Please let me know if you'd like to discuss anything in our next 1:1.
+
+${t.sign}
+Gabriel
+Security Engineer — Avesis`;
+    },
+    'access review notification': () => {
+      subject = `Action Required — Access Review Due`;
+      body = `${t.open}
+
+As part of Avesis's security compliance requirements, we are conducting a scheduled access review. Your participation is required.
+
+Review Details:
+${ctx}
+
+What you need to do:
+Please review the access permissions listed and confirm whether each user/system should retain access. Respond by [deadline] to avoid automatic suspension of unreviewed accounts.
+
+This review is required for our SOC 2 Type II and HITRUST compliance posture.
+
+If you have questions, please don't hesitate to reach out.
+
+${t.sign}
+Gabriel Williams
+Security Engineer — Avesis
+Cc: Aftab Hossain (Manager)`;
+    },
+    'phishing alert notification': () => {
+      subject = `[SECURITY ALERT] Phishing Campaign Detected`;
+      body = `${t.open}
+
+Our security systems have detected a phishing campaign targeting Avesis. Please read the following carefully.
+
+Details:
+${ctx}
+
+What to do if you received this email:
+1. Do NOT click any links or open any attachments
+2. Do NOT enter any credentials on any page it links to
+3. Report the email immediately using the "Report Phishing" button in Outlook
+4. If you already clicked a link or entered credentials, contact the security team immediately
+
+We are monitoring for any compromised accounts and will follow up if action is needed on your end.
+
+Stay vigilant — when in doubt, don't click.
+
+${t.sign}
+Gabriel Williams
+Security Engineer — Avesis
+Security Hotline: [Add contact]`;
+    },
+    'compliance evidence request': () => {
+      subject = `Compliance Evidence Request — ${ctx.split(' ').slice(0,4).join(' ')}`;
+      body = `${t.open}
+
+As part of our ongoing compliance efforts (SOC 2 Type II / HITRUST), I need to collect evidence related to the following:
+
+Request Details:
+${ctx}
+
+Evidence Needed:
+Please provide the requested documentation, screenshots, or configuration exports at your earliest convenience. This evidence is required to demonstrate our compliance posture to auditors.
+
+Deadline: [Add deadline]
+
+If you need clarification on exactly what is needed, please reply and I'll provide specifics.
+
+Thank you for your support in keeping Avesis audit-ready.
+
+${t.sign}
+Gabriel Williams
+Security Engineer — Avesis`;
+    },
+    'policy violation notice': () => {
+      subject = `Security Policy Notice — Action Required`;
+      body = `${t.open}
+
+I'm reaching out regarding a security policy matter that requires your attention.
+
+Details:
+${ctx}
+
+Required Action:
+Please review Avesis's relevant security policy and take corrective action as described above. This is important to maintain our security posture and compliance requirements.
+
+If there are extenuating circumstances or you need an exception, please reach out to discuss. Exceptions require manager approval (Aftab Hossain) and must be documented.
+
+${t.sign}
+Gabriel Williams
+Security Engineer — Avesis`;
+    },
+    'onboarding security checklist': () => {
+      subject = `Welcome to Avesis — Security Onboarding Checklist`;
+      body = `${t.open}
+
+Welcome to the Avesis team! As part of your onboarding, please complete the following security setup steps. These are required before you can access all company systems.
+
+${ctx ? 'Additional context: ' + ctx + '\n' : ''}
+Your Security Checklist:
+☐ Set up Multi-Factor Authentication (MFA) on your Avesis account
+☐ Register your device in Microsoft Intune (device compliance)
+☐ Complete the security awareness training in Ninjio
+☐ Review and acknowledge the Avesis Security Policy
+☐ Set up a strong, unique password using a password manager
+
+Please complete these within your first 3 business days. Reply to this email once done or if you need any help.
+
+Looking forward to working with you!
+
+${t.sign}
+Gabriel Williams
+Security Engineer — Avesis`;
+    },
+    'custom': () => {
+      subject = `Security Communication — Avesis`;
+      body = `${t.open}
+
+${ctx}
+
+Please don't hesitate to reach out if you have any questions.
+
+${t.sign}
+Gabriel Williams
+Security Engineer — Avesis`;
+    }
+  };
+
+  (templates[type] || templates['custom'])();
+
+  // Build final output
+  const sep = '-'.repeat(50);
+  out.textContent = `Subject: ${subject}\nTo: ${toLine}\nFrom: Gabriel Williams <gabriel.williams@avesis.com>\nDate: ${date}\n${sep}\n\n${body}`;
+
+  // Update subject preview
+  const subPrev = document.getElementById('em-subject-preview');
+  if (subPrev) { subPrev.textContent = '📧 ' + subject; subPrev.style.display = 'block'; }
+}
+
+function copyEmail() {
+  const t = document.getElementById('em-output').textContent;
+  if (!t || t.includes('will appear here')) return;
+  navigator.clipboard.writeText(t).then(() => {
+    const btn = event.target; btn.textContent = '✓ Copied!';
+    setTimeout(() => btn.textContent = '📋 Copy', 1500);
+  });
+}
+function clearEmail() {
+  document.getElementById('em-output').textContent = 'Your generated email will appear here...';
+  const sp = document.getElementById('em-subject-preview'); if (sp) sp.style.display='none';
+}
+
+
+// ═══════════════ IMPACT LOG ═══════════════
+let impacts = S.get('gw_impacts_v1') || [];
+let impactFilter = 'all';
+
+const impTypeColors = {
+  'Security Win': 'b-green', 'Improvement': 'b-blue', 'Compliance': 'b-amber',
+  'Automation': 'b-cyan', 'Incident Response': 'b-red', 'Training': 'b-purple',
+  'Process': 'b-blue', 'Collaboration': 'b-green'
+};
+const impDomColors = {
+  'IAM': 'b-blue', 'Endpoint Security': 'b-green', 'MS Purview': 'b-purple',
+  'Insider Risk': 'b-red', 'Compliance': 'b-amber', 'Learning': 'b-cyan', 'General': ''
+};
+
+function addImpact() {
+  const title = document.getElementById('imp-title').value.trim();
+  if (!title) { document.getElementById('imp-title').focus(); return; }
+  impacts.unshift({
+    id: Date.now(),
+    title,
+    result: document.getElementById('imp-result').value.trim(),
+    domain: document.getElementById('imp-domain').value,
+    type: document.getElementById('imp-type').value,
+    metric: document.getElementById('imp-metric').value.trim(),
+    date: new Date().toISOString()
+  });
+  S.set('gw_impacts_v1', impacts);
+  document.getElementById('imp-title').value = '';
+  document.getElementById('imp-result').value = '';
+  document.getElementById('imp-metric').value = '';
+  renderImpact();
+}
+
+function filterImpact(f, btn) {
+  impactFilter = f;
+  document.querySelectorAll('#impact-filters .fbtn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderImpact();
+}
+
+function deleteImpact(id) {
+  impacts = impacts.filter(x => x.id !== id);
+  S.set('gw_impacts_v1', impacts);
+  renderImpact();
+}
+
+function editImpact(id) {
+  const e = impacts.find(x => x.id === id); if (!e) return;
+  openModal(`
+    <h3>✏️ Edit Impact Entry</h3>
+    <div class="modal-row"><label>What You Did</label>
+      <input class="inp" id="ei-title" value="${(e.title||'').replace(/"/g,'&quot;')}">
+    </div>
+    <div class="modal-row"><label>Result / Impact</label>
+      <textarea class="inp" id="ei-result" style="min-height:80px;">${e.result||''}</textarea>
+    </div>
+    <div class="modal-row"><label>Metric / Number</label>
+      <input class="inp" id="ei-metric" value="${e.metric||''}" placeholder="e.g. 12 users, 3 policies, 30% reduction">
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <div class="modal-row" style="flex:1;min-width:130px;"><label>Domain</label>
+        <select class="inp" id="ei-domain">
+          ${['IAM','Endpoint Security','MS Purview','Insider Risk','Compliance','Learning','General'].map(d=>`<option ${d===e.domain?'selected':''}>${d}</option>`).join('')}
+        </select>
+      </div>
+      <div class="modal-row" style="flex:1;min-width:130px;"><label>Type</label>
+        <select class="inp" id="ei-type">
+          ${['Security Win','Improvement','Compliance','Automation','Incident Response','Training','Process','Collaboration'].map(t=>`<option ${t===e.type?'selected':''}>${t}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer" style="justify-content:space-between;">
+      <button class="btn btn-ghost" style="color:var(--red);border-color:rgba(239,68,68,0.3);font-size:0.75rem;" onclick="deleteImpact(${id});closeModal()">🗑 Delete</button>
+      <div style="display:flex;gap:7px;">
+        <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-green" onclick="saveImpactEdit(${id})">💾 Save</button>
+      </div>
+    </div>`);
+}
+
+function saveImpactEdit(id) {
+  const e = impacts.find(x => x.id === id); if (!e) return;
+  e.title = document.getElementById('ei-title').value.trim() || e.title;
+  e.result = document.getElementById('ei-result').value;
+  e.metric = document.getElementById('ei-metric').value;
+  e.domain = document.getElementById('ei-domain').value;
+  e.type = document.getElementById('ei-type').value;
+  S.set('gw_impacts_v1', impacts);
+  closeModal(); renderImpact();
+}
+
+function renderImpact() {
+  // Stats
+  const statsEl = document.getElementById('impact-stats'); if (!statsEl) return;
+  const total = impacts.length;
+  const thisMonth = impacts.filter(i => {
+    const d = new Date(i.date); const n = new Date();
+    return d.getMonth()===n.getMonth() && d.getFullYear()===n.getFullYear();
+  }).length;
+  const thisQ = impacts.filter(i => {
+    const d = new Date(i.date); const n = new Date();
+    return Math.floor(d.getMonth()/3)===Math.floor(n.getMonth()/3) && d.getFullYear()===n.getFullYear();
+  }).length;
+  const domainCount = [...new Set(impacts.map(i=>i.domain))].length;
+  statsEl.innerHTML = [
+    { num: total, lbl: 'Total Wins Logged' },
+    { num: thisMonth, lbl: 'This Month' },
+    { num: thisQ, lbl: 'This Quarter' },
+    { num: domainCount, lbl: 'Domains Covered' }
+  ].map(s => `<div class="big-stat"><div class="big-num">${s.num}</div><div class="big-lbl">${s.lbl}</div></div>`).join('');
+
+  // List
+  const listEl = document.getElementById('impact-list'); if (!listEl) return;
+  let filtered = impacts;
+  if (impactFilter !== 'all') filtered = impacts.filter(i => i.domain === impactFilter);
+  if (!filtered.length) {
+    listEl.innerHTML = `<div class="empty">${impacts.length ? '// no entries for this filter' : '// nothing logged yet — add your first win above!'}</div>`;
+    return;
+  }
+
+  // Group by month
+  const groups = {};
+  filtered.forEach(i => {
+    const d = new Date(i.date);
+    const key = d.toLocaleDateString('en-US',{month:'long',year:'numeric'});
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(i);
+  });
+
+  listEl.innerHTML = Object.entries(groups).map(([month, entries]) => `
+    <div style="font-family:var(--mono);font-size:0.58rem;color:var(--text3);text-transform:uppercase;letter-spacing:2px;margin:16px 0 8px;display:flex;align-items:center;gap:10px;">
+      ${month} <span style="flex:1;height:1px;background:var(--border);display:block;"></span>
+      <span>${entries.length} entr${entries.length===1?'y':'ies'}</span>
+    </div>
+    ${entries.map(i => `
+      <div class="impact-entry" onclick="editImpact(${i.id})">
+        <div class="impact-entry-top">
+          <div style="flex:1;">
+            <div class="impact-title">${i.title}</div>
+            ${i.result ? `<div class="impact-result">${i.result}</div>` : ''}
+            ${i.metric ? `<span class="impact-metric">📊 ${i.metric}</span>` : ''}
+          </div>
+        </div>
+        <div class="impact-footer">
+          <span class="badge ${impDomColors[i.domain]||''}">${i.domain}</span>
+          <span class="badge ${impTypeColors[i.type]||''}">${i.type}</span>
+          <span class="impact-date">${new Date(i.date).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}</span>
+          <span style="font-family:var(--mono);font-size:0.58rem;color:var(--text3);margin-left:auto;">Click to edit</span>
+        </div>
+      </div>`).join('')}
+  `).join('');
+}
+
+function generateRapSheet() {
+  if (!impacts.length) { alert('No impact entries yet. Log some wins first!'); return; }
+  const n = new Date();
+  const grouped = {};
+  impacts.forEach(i => {
+    if (!grouped[i.domain]) grouped[i.domain] = [];
+    grouped[i.domain].push(i);
+  });
+
+  const thisQ = impacts.filter(i => {
+    const d = new Date(i.date);
+    return Math.floor(d.getMonth()/3)===Math.floor(n.getMonth()/3) && d.getFullYear()===n.getFullYear();
+  });
+
+  let sheet = 'GABRIEL WILLIAMS - SECURITY ENGINEER - AVESIS\n';
+  sheet += 'Impact Summary - Generated ' + n.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) + '\n';
+  sheet += '-'.repeat(60) + '\n\n';
+  sheet += 'OVERVIEW\n';
+  sheet += '* ' + impacts.length + ' documented wins across ' + [...new Set(impacts.map(i=>i.domain))].length + ' security domains\n';
+  sheet += '* ' + thisQ.length + ' wins this quarter\n\n';
+
+  Object.entries(grouped).forEach(([domain, entries]) => {
+    sheet += domain.toUpperCase() + '\n';
+    entries.forEach(i => {
+      let bullet = '* ' + i.title;
+      if (i.metric) bullet += ' [' + i.metric + ']';
+      if (i.result) bullet += '\n  -> ' + i.result;
+      sheet += bullet + '\n';
+    });
+    sheet += '\n';
+  });
+
+  sheet += '-'.repeat(60) + '\n';
+  sheet += 'Domains: ' + [...new Set(impacts.map(i=>i.domain))].join(', ') + '\n';
+  sheet += 'Tools: MS Entra ID, MS Purview, MS Defender, Intune, MS Sentinel\n';
+  sheet += 'Certifications in progress: SC-300, SC-400';
+
+  document.getElementById('rap-sheet-output').textContent = sheet;
+  document.getElementById('rap-sheet-section').style.display = 'block';
+  document.getElementById('rap-sheet-section').scrollIntoView({behavior:'smooth'});
+}
+
+function copyRapSheet() {
+  const txt = document.getElementById('rap-sheet-output').textContent;
+  if (!txt || txt.includes('appears here')) { generateRapSheet(); return; }
+  navigator.clipboard.writeText(txt).then(() => {
+    const btn = event.target; btn.textContent = '✓ Copied!';
+    setTimeout(() => btn.textContent = '📋 Copy All', 1500);
+  });
+}
+
+// ═══════════════ INIT ═══════════════
+buildDaySchedule();
+buildWeek();
+refreshToday();
+renderTodos();
+renderNotesList();
+renderScripts();
+renderDomains();
+renderImpact();
+</script>
+</body>
+</html>
