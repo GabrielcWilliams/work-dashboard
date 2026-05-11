@@ -1021,27 +1021,44 @@ async function loadAllFromDB() {
 
   // Todos
   const dbTodos = await dbSelect('todos', q => q.eq('archived', false).order('created_at', {ascending:false}));
-  if (dbTodos) { todos = dbTodos.map(r => ({ id:r.id, text:r.text, desc:r.description, domain:r.domain, priority:r.priority, done:r.done, doneAt:r.done_at })); S.set('gw_todos_v4', todos); }
+  if (dbTodos && dbTodos.length > 0) {
+    todos = dbTodos.map(r => ({ id:r.id, text:r.text, desc:r.description, domain:r.domain, priority:r.priority, done:r.done, doneAt:r.done_at }));
+    S.set('gw_todos_v4', todos);
+  }
 
   // Archive
   const dbArch = await dbSelect('todos', q => q.eq('archived', true).order('done_at', {ascending:false}));
-  if (dbArch) { todoArchive = dbArch.map(r => ({ id:r.id, text:r.text, desc:r.description, domain:r.domain, priority:r.priority, done:true, doneAt:r.done_at })); S.set('gw_archive_v1', todoArchive); }
+  if (dbArch && dbArch.length > 0) {
+    todoArchive = dbArch.map(r => ({ id:r.id, text:r.text, desc:r.description, domain:r.domain, priority:r.priority, done:true, doneAt:r.done_at }));
+    S.set('gw_archive_v1', todoArchive);
+  }
 
-  // Notes
+  // Notes — only overwrite local if DB has data
   const dbNotes = await dbSelect('notes', q => q.order('updated_at', {ascending:false}));
-  if (dbNotes) { notes = dbNotes.map(r => ({ id:r.id+'', folderId:r.folderId||null, title:r.title, body:r.body, updated:new Date(r.updated_at).getTime() })); S.set('gw_notes_v3', notes); }
+  if (dbNotes && dbNotes.length > 0) {
+    notes = dbNotes.map(r => ({ id:r.id+'', folderId:r.folderId||null, title:r.title, body:r.body, updated:new Date(r.updated_at).getTime() }));
+    S.set('gw_notes_v3', notes);
+  }
+  // Always load folders from localStorage (they're stored locally)
+  noteFolders = S.get('gw_nf_v2') || noteFolders;
 
   // Scripts
   const dbScripts = await dbSelect('scripts', q => q.order('created_at', {ascending:false}));
-  if (dbScripts) { scripts = dbScripts.map(r => ({ id:r.id+'', name:r.name, lang:r.language, desc:r.description, tags:r.tags, code:r.code })); S.set('gw_scripts_v2', scripts); }
+  if (dbScripts && dbScripts.length > 0) {
+    scripts = dbScripts.map(r => ({ id:r.id+'', name:r.name, lang:r.language, desc:r.description, section:r.section||'General', tags:r.tags, code:r.code }));
+    S.set('gw_scripts_v2', scripts);
+  }
 
   // Impacts
   const dbImpacts = await dbSelect('impacts', q => q.order('created_at', {ascending:false}));
-  if (dbImpacts) { impacts = dbImpacts.map(r => ({ id:r.id, title:r.title, result:r.result, domain:r.domain, type:r.type, metric:r.metric, date:r.created_at })); S.set('gw_impacts_v1', impacts); }
+  if (dbImpacts && dbImpacts.length > 0) {
+    impacts = dbImpacts.map(r => ({ id:r.id, title:r.title, result:r.result, domain:r.domain, type:r.type, metric:r.metric, date:r.created_at }));
+    S.set('gw_impacts_v1', impacts);
+  }
 
   // Projects
   const dbProjects = await dbSelect('projects');
-  if (dbProjects) {
+  if (dbProjects && dbProjects.length > 0) {
     projects = {};
     dbProjects.forEach(r => {
       if (!projects[r.domain_id]) projects[r.domain_id] = [];
@@ -1052,11 +1069,17 @@ async function loadAllFromDB() {
 
   // Schedule
   const dbSched = await dbSelect('schedule_blocks', q => q.order('sort_order'));
-  if (dbSched && dbSched.length) { schedBlocks = dbSched.map(r => ({ id:r.block_id, time:r.time_label, title:r.title, desc:r.description, cls:r.color })); S.set('gw_sched_v1', schedBlocks); }
+  if (dbSched && dbSched.length > 0) {
+    schedBlocks = dbSched.map(r => ({ id:r.block_id, time:r.time_label, title:r.title, desc:r.description, cls:r.color }));
+    S.set('gw_sched_v1', schedBlocks);
+  }
 
   // Week days
   const dbDays = await dbSelect('week_days', q => q.order('id'));
-  if (dbDays && dbDays.length) { dayData = dbDays.map(r => ({ id:r.day_id, name:r.name, theme:r.theme, focus:r.focus, tasks:r.tasks||[] })); S.set('gw_days_v1', dayData); }
+  if (dbDays && dbDays.length > 0) {
+    dayData = dbDays.map(r => ({ id:r.day_id, name:r.name, theme:r.theme, focus:r.focus, tasks:r.tasks||[] }));
+    S.set('gw_days_v1', dayData);
+  }
 }
 
 // ─── SYNC HELPERS (called after each local change) ───
@@ -1073,11 +1096,30 @@ async function syncDeleteTodo(id) {
 }
 async function syncNote(n) {
   if (!sb || offlineMode || !currentUser) return;
-  const isNew = isNaN(Number(n.id)) || n.id.startsWith('n');
-  const row = { title:n.title, body:n.body, folderId:n.folderId||null, updated_at: new Date().toISOString() };
-  if (!isNew) row.id = Number(n.id);
-  const result = await dbUpsert('notes', row);
-  if (result && isNew) { n.id = result.id+''; S.set('gw_notes_v3', notes); }
+  try {
+    // IDs starting with 'n' are local temp IDs — always insert as new
+    const isLocalId = typeof n.id === 'string' && n.id.startsWith('n');
+    const row = {
+      user_id: currentUser.id,
+      title: n.title || 'Untitled',
+      body: n.body || '',
+      folderId: n.folderId || null,
+      updated_at: new Date().toISOString()
+    };
+    if (!isLocalId) {
+      // Existing DB record — update it
+      row.id = Number(n.id);
+    }
+    const { data, error } = await sb.from('notes').upsert(row, { onConflict: 'id' }).select();
+    if (error) throw error;
+    // If it was a new note, update local ID to match DB ID
+    if (isLocalId && data?.[0]) {
+      n.id = data[0].id + '';
+      saveNotes(); // persist the new DB id to localStorage
+    }
+  } catch(e) {
+    console.warn('syncNote error:', e);
+  }
 }
 async function syncDeleteNote(id) { await dbDelete('notes', Number(id)); }
 async function syncScript(sc) {
