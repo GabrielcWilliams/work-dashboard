@@ -631,7 +631,10 @@ textarea.inp{resize:vertical;min-height:80px;}
     <div class="notes-list" id="notes-list-panel"></div>
     <div class="notes-editor" id="notes-editor">
       <div class="notes-editor-hdr">
-        <input id="note-title-inp" placeholder="Note title..." onblur="saveCurrentNote()" onkeydown="if(event.key==='Enter'){saveCurrentNote();document.getElementById('note-body').focus();}">
+        <input id="note-title-inp" placeholder="Note title..."
+          oninput="scheduleAutoSave()"
+          onblur="saveCurrentNote(false)"
+          onkeydown="if(event.key==='Enter'){saveCurrentNote(false);document.getElementById('note-body').focus();}">
         <button class="btn btn-red" style="font-size:0.73rem;padding:5px 10px;flex-shrink:0;" onclick="deleteCurrentNote()">🗑</button>
       </div>
       <div class="notes-toolbar">
@@ -649,13 +652,16 @@ textarea.inp{resize:vertical;min-height:80px;}
         <button class="ntb-btn" onclick="copyNote()">📋 Copy</button>
       </div>
       <div class="notes-body">
-        <textarea class="notes-content" id="note-body" placeholder="Start writing...&#10;&#10;Tips:&#10;# Heading 1&#10;## Heading 2&#10;- Bullet list&#10;[ ] Checkbox&#10;**bold** *italic*" onblur="saveCurrentNote()"></textarea>
+        <textarea class="notes-content" id="note-body"
+          placeholder="Start writing...&#10;&#10;Tips:&#10;# Heading 1&#10;## Heading 2&#10;- Bullet list&#10;[ ] Checkbox&#10;**bold** *italic*"
+          oninput="scheduleAutoSave(); updateNoteWordCount();"
+          onblur="saveCurrentNote(false)"></textarea>
       </div>
       <div class="notes-footer">
         <span id="note-wc">0 words</span>
         <div style="display:flex;gap:8px;align-items:center;">
           <span id="note-saved" style="color:var(--green);">—</span>
-          <button class="btn btn-green" style="padding:5px 14px;font-size:0.78rem;" onclick="saveCurrentNote()">💾 Save</button>
+          <button class="btn btn-green" style="padding:5px 14px;font-size:0.78rem;" onclick="saveCurrentNote(false)">💾 Save</button>
         </div>
       </div>
     </div>
@@ -2183,10 +2189,10 @@ function saveCurrentNote(silent) {
   const titleEl = document.getElementById('note-title-inp');
   const bodyEl = document.getElementById('note-body');
   const savedEl = document.getElementById('note-saved');
-  const newTitle = titleEl?.value?.trim() || 'Untitled';
+  // Read current values from DOM
+  const newTitle = (titleEl?.value||'').trim() || 'Untitled';
   const newBody = bodyEl?.value || '';
-  // Only save if something actually changed
-  if (n.title === newTitle && n.body === newBody) return;
+  // Always save - don't skip based on "nothing changed" since first load can fool this check
   n.title = newTitle;
   n.body = newBody;
   n.updated = Date.now();
@@ -2195,9 +2201,33 @@ function saveCurrentNote(silent) {
   if (!silent) {
     if (savedEl) savedEl.textContent = '✓ Saved ' + new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
     updateNoteWordCount();
-    renderNotesList(); // re-render sidebar so title updates
+    // Update ONLY the note title in the sidebar without full re-render
+    // to avoid losing focus/cursor position
+    updateNoteTitleInSidebar(currentNoteId, newTitle);
   }
 }
+
+function updateNoteTitleInSidebar(noteId, newTitle) {
+  // Find and update just the note item text in the sidebar
+  // instead of re-rendering the whole list
+  const sidebar = document.getElementById('notes-list-panel');
+  if (!sidebar) return;
+  // Find the note div by its onclick attribute
+  const noteDivs = sidebar.querySelectorAll('[onclick*="loadNote"]');
+  noteDivs.forEach(div => {
+    if (div.getAttribute('onclick') === `loadNote('${noteId}')`) {
+      const titleSpan = div.querySelector('div > div:first-child');
+      if (titleSpan) titleSpan.textContent = newTitle;
+    }
+  });
+}
+
+let autoSaveTimer = null;
+function scheduleAutoSave() {
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(() => saveCurrentNote(true), 2000);
+}
+
 
 function deleteCurrentNote() {
   if (!currentNoteId) return;
