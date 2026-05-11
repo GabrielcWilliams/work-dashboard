@@ -1097,28 +1097,24 @@ async function syncDeleteTodo(id) {
 async function syncNote(n) {
   if (!sb || offlineMode || !currentUser) return;
   try {
-    // IDs starting with 'n' are local temp IDs — always insert as new
     const isLocalId = typeof n.id === 'string' && n.id.startsWith('n');
     const row = {
       user_id: currentUser.id,
       title: n.title || 'Untitled',
       body: n.body || '',
+      category: n.category || 'General',
       folderId: n.folderId || null,
       updated_at: new Date().toISOString()
     };
-    if (!isLocalId) {
-      // Existing DB record — update it
-      row.id = Number(n.id);
-    }
+    if (!isLocalId) row.id = Number(n.id);
     const { data, error } = await sb.from('notes').upsert(row, { onConflict: 'id' }).select();
-    if (error) throw error;
-    // If it was a new note, update local ID to match DB ID
+    if (error) { console.error('syncNote error:', error.message, error.details); return; }
     if (isLocalId && data?.[0]) {
       n.id = data[0].id + '';
-      saveNotes(); // persist the new DB id to localStorage
+      saveNotes();
     }
   } catch(e) {
-    console.warn('syncNote error:', e);
+    console.error('syncNote exception:', e);
   }
 }
 async function syncDeleteNote(id) { await dbDelete('notes', Number(id)); }
@@ -2116,7 +2112,7 @@ function countAllNotes(f) {
 function noteItem(n, depth) {
   const active = n.id === currentNoteId;
   const d = depth||0;
-  return `<div style="display:flex;align-items:center;gap:6px;padding:6px 8px 6px ${d*14+8}px;background:${active?'var(--green-dim)':'var(--surface)'};border:1px solid ${active?'var(--green-border)':'var(--border)'};border-radius:6px;cursor:pointer;margin-bottom:2px;transition:all 0.15s;" onclick="loadNote('${n.id}')">
+  return `<div data-note-id="${n.id}" style="display:flex;align-items:center;gap:6px;padding:6px 8px 6px ${d*14+8}px;background:${active?'var(--green-dim)':'var(--surface)'};border:1px solid ${active?'var(--green-border)':'var(--border)'};border-radius:6px;cursor:pointer;margin-bottom:2px;transition:all 0.15s;" onclick="loadNote('${n.id}')">
     <span style="font-size:0.65rem;color:var(--text3);">📄</span>
     <div style="flex:1;overflow:hidden;">
       <div style="font-size:0.78rem;font-weight:${active?700:500};color:${active?'var(--green)':'var(--text)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${n.title||'Untitled'}</div>
@@ -2190,7 +2186,7 @@ function getAllFolderIds(fid) {
 
 // ── Note operations ──
 function createNoteInFolder(fid) {
-  const n = { id:'n'+Date.now(), folderId:fid, title:'Untitled Note', body:'', updated:Date.now() };
+  const n = { id:'n'+Date.now(), folderId:fid, title:'Untitled Note', body:'', category:'General', updated:Date.now() };
   notes.unshift(n);
   saveNotes(); syncNote(n);
   expandParents(fid);
@@ -2210,19 +2206,32 @@ function openNewNote() {
 
 function loadNote(id) {
   const n = notes.find(x=>x.id===id); if (!n) return;
-  // Save current note first if dirty
-  if (currentNoteId && currentNoteId !== id) { saveCurrentNote(true); }
+  // Save current note first before switching
+  if (currentNoteId && currentNoteId !== id) {
+    saveCurrentNote(true);
+  }
   currentNoteId = id;
   const titleEl = document.getElementById('note-title-inp');
   const bodyEl = document.getElementById('note-body');
-  if (titleEl) titleEl.value = n.title||'';
-  if (bodyEl) bodyEl.value = n.body||'';
   const savedEl = document.getElementById('note-saved');
-  if (savedEl) savedEl.textContent = '—';
+  if (titleEl) titleEl.value = n.title || '';
+  if (bodyEl) bodyEl.value = n.body || '';
+  if (savedEl) savedEl.textContent = n.body ? '— click Save or type to save' : '— new note';
   updateNoteWordCount();
-  renderNotesList();
-  // Focus body for immediate typing
-  setTimeout(()=>bodyEl?.focus(), 50);
+  // DO NOT call renderNotesList() here — it causes blur events
+  // which fire saveCurrentNote() before values are loaded, saving empty content
+  // Instead just highlight the active note visually
+  highlightActiveNote(id);
+  setTimeout(() => bodyEl?.focus(), 50);
+}
+
+function highlightActiveNote(id) {
+  const sidebar = document.getElementById('notes-list-panel');
+  if (!sidebar) return;
+  sidebar.querySelectorAll('[data-note-id]').forEach(el => {
+    el.style.background = el.dataset.noteId === id ? 'var(--green-dim)' : 'var(--surface)';
+    el.style.borderColor = el.dataset.noteId === id ? 'var(--green-border)' : 'var(--border)';
+  });
 }
 
 function saveCurrentNote(silent) {
@@ -2922,6 +2931,11 @@ function copyRapSheet() {
 
 
 // ═══════════════ INIT ═══════════════
+// Save notes before page unload (refresh/close)
+window.addEventListener('beforeunload', () => {
+  saveCurrentNote(true);
+});
+
 // Register service worker for offline PWA support
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
