@@ -9,7 +9,6 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="SecOps">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -216,24 +215,6 @@ textarea.inp{resize:vertical;min-height:80px;}
   .main{padding:14px;}
   .topbar,.nav{padding-left:14px;padding-right:14px;}
 }
-.login-screen{position:fixed;inset:0;background:var(--bg);z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px;}
-.login-screen::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,229,160,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,160,0.02) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;}
-.login-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:36px 32px;width:min(420px,100%);position:relative;z-index:1;}
-.login-logo{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
-.login-dot{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green);animation:pulse 2s infinite;}
-.login-title{font-size:1.1rem;font-weight:800;background:linear-gradient(90deg,var(--green),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
-.login-sub{font-size:0.72rem;color:var(--text3);font-family:var(--mono);margin-bottom:24px;}
-.login-tabs{display:flex;gap:4px;margin-bottom:20px;background:var(--surface2);border-radius:8px;padding:4px;}
-.login-tab{flex:1;text-align:center;padding:7px;border-radius:6px;cursor:pointer;font-size:0.78rem;font-weight:600;color:var(--text3);border:none;background:transparent;transition:all 0.2s;font-family:var(--sans);}
-.login-tab.active{background:var(--green);color:#000;}
-.login-field{margin-bottom:12px;}
-.login-field label{display:block;font-family:var(--mono);font-size:0.58rem;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;}
-.login-err{background:var(--red-dim);border:1px solid rgba(239,68,68,0.3);border-radius:7px;padding:8px 12px;font-size:0.76rem;color:#fca5a5;margin-bottom:12px;display:none;}
-.login-ok{background:var(--green-dim);border:1px solid var(--green-border);border-radius:7px;padding:8px 12px;font-size:0.76rem;color:var(--green);margin-bottom:12px;display:none;}
-.login-divider{text-align:center;font-size:0.68rem;color:var(--text3);margin:14px 0;font-family:var(--mono);}
-.login-offline{background:transparent;border:1px solid var(--border);border-radius:7px;padding:9px 16px;color:var(--text2);font-family:var(--sans);font-size:0.78rem;font-weight:600;cursor:pointer;width:100%;transition:all 0.2s;}
-.login-offline:hover{border-color:var(--text3);color:var(--text);}
-.supa-banner{background:var(--amber-dim);border:1px solid rgba(245,158,11,0.3);border-radius:7px;padding:9px 12px;font-size:0.73rem;color:var(--amber);margin-bottom:14px;line-height:1.6;}
 .user-chip{display:flex;align-items:center;gap:7px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 12px 4px 8px;font-size:0.7rem;color:var(--text2);cursor:pointer;}
 .user-chip:hover{border-color:var(--red);color:var(--red);}
 /* Toast notification — non-blocking replacement for alert() */
@@ -245,54 +226,8 @@ textarea.inp{resize:vertical;min-height:80px;}
 </head>
 <body>
 
-<!-- ══════════════════════════════════════════
-     LOGIN SCREEN
-     Shown on app load. Supports Supabase auth
-     or offline-only (localStorage) mode.
-══════════════════════════════════════════ -->
-<div class="login-screen" id="login-screen">
-  <div class="login-card">
-    <div class="login-logo"><div class="login-dot"></div><div class="login-title">Security Command Center</div></div>
-    <div class="login-sub">Gabriel Williams · Avesis</div>
-    <div id="supa-banner" class="supa-banner" style="display:none;">
-      Supabase not configured. <strong>Add your keys below</strong> to enable cloud sync, or use Offline Mode.<br>
-      Get your keys at <strong>supabase.com</strong> → Project Settings → API
-    </div>
-    <div id="supa-config-fields" style="display:none;margin-bottom:14px;">
-      <div class="login-field"><label>Supabase Project URL</label>
-        <!-- FIX: saveSupaConfig() is now defined in JS -->
-        <input class="inp" id="cfg-url" placeholder="https://xxxx.supabase.co" oninput="saveSupaConfig()">
-      </div>
-      <div class="login-field"><label>Supabase Anon Key</label>
-        <input class="inp" id="cfg-key" placeholder="eyJhbGci..." oninput="saveSupaConfig()">
-      </div>
-    </div>
-    <div class="login-tabs">
-      <button class="login-tab active" id="tab-signin" onclick="switchLoginTab('signin')">Sign In</button>
-      <button class="login-tab" id="tab-signup" onclick="switchLoginTab('signup')">Create Account</button>
-    </div>
-    <div id="login-err" class="login-err"></div>
-    <div id="login-ok" class="login-ok"></div>
-    <div id="signin-form">
-      <div class="login-field"><label>Email</label><input class="inp" id="si-email" type="email" placeholder="you@email.com" onkeydown="if(event.key==='Enter')signIn()"></div>
-      <div class="login-field"><label>Password</label><input class="inp" id="si-pass" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')signIn()"></div>
-      <button class="btn btn-green" style="width:100%;margin-top:4px;" onclick="signIn()" id="signin-btn">Sign In</button>
-    </div>
-    <div id="signup-form" style="display:none;">
-      <div class="login-field"><label>Your Name</label><input class="inp" id="su-name" placeholder="Gabriel Williams"></div>
-      <div class="login-field"><label>Email</label><input class="inp" id="su-email" type="email" placeholder="you@email.com"></div>
-      <div class="login-field"><label>Password</label><input class="inp" id="su-pass" type="password" placeholder="Min 6 characters" onkeydown="if(event.key==='Enter')signUp()"></div>
-      <button class="btn btn-green" style="width:100%;margin-top:4px;" onclick="signUp()" id="signup-btn">Create Account</button>
-    </div>
-    <div class="login-divider">— or —</div>
-    <button class="login-offline" onclick="goOffline()">Continue Offline (saves locally only)</button>
-  </div>
-</div>
 
-<!-- ══════════════════════════════════════════
-     MAIN APP SHELL — hidden until authenticated
-══════════════════════════════════════════ -->
-<div class="shell" id="app-shell" style="display:none;">
+<div class="shell" id="app-shell">
 <div class="topbar">
   <div class="topbar-left">
     <div class="logo-dot"></div>
@@ -301,7 +236,7 @@ textarea.inp{resize:vertical;min-height:80px;}
   <div class="topbar-right">
     <div id="live-date"></div>
     <div id="live-clock"></div>
-    <div id="user-chip" class="user-chip" onclick="signOut()" title="Sign out"></div>
+    <div id="user-chip" class="user-chip" style="display:none;"></div>
     <div class="hamburger" id="hamburger" onclick="toggleMenu()">
       <span></span><span></span><span></span>
     </div>
@@ -723,58 +658,11 @@ function showToast(msg, type = 'info') {
   setTimeout(() => el.remove(), 3000);
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  SUPABASE CONFIGURATION
-//  SUPA_URL / SUPA_KEY are your project's anon (public) credentials.
-//  Anon keys are safe to ship client-side — they're restricted by
-//  Supabase Row Level Security (RLS) policies on each table.
-//  NEVER replace these with a service_role key.
-// ═══════════════════════════════════════════════════════════════
-
-const SUPA_URL = 'https://vkqjogiklqlkinjjjehq.supabase.co';
-const SUPA_KEY = 'sb_publishable_5wjyhiKWA0P-DpBra5eIpA_-nX5HMTj';
-
-/** Supabase client — null if init failed (offline fallback kicks in) */
-let sb = null;
-/** Authenticated user object from Supabase Auth */
+// ── App state ──
 let currentUser = null;
-/** True when user chose "Continue Offline" — skips all DB calls */
-let offlineMode = false;
 
-// Attempt Supabase init; fall back gracefully if CDN failed to load
-try {
-  sb = window.supabase.createClient(SUPA_URL, SUPA_KEY);
-} catch(e) {
-  console.warn('Supabase init failed — offline mode will be used', e);
-}
 
 // ═══════════════════════════════════════════════════════════════
-//  SUPABASE CONFIG FIELDS (shown when auto-init fails)
-//  Lets users enter their own Supabase project credentials
-//  if they forked this app or the hardcoded keys are invalid.
-// ═══════════════════════════════════════════════════════════════
-
-/**
- * FIX: This function was referenced in HTML but never defined.
- * Called on every keystroke in the cfg-url / cfg-key inputs.
- * Persists the values to localStorage and tries to re-init Supabase.
- */
-function saveSupaConfig() {
-  const url = document.getElementById('cfg-url')?.value?.trim();
-  const key = document.getElementById('cfg-key')?.value?.trim();
-  // Persist so values survive page refresh
-  if (url) localStorage.setItem('supa_url_override', url);
-  if (key) localStorage.setItem('supa_key_override', key);
-  // Attempt re-init with the new credentials
-  if (url && key) {
-    try {
-      sb = window.supabase.createClient(url, key);
-      clearLoginMsg();
-    } catch(e) {
-      console.warn('Failed to initialize Supabase with custom config:', e);
-    }
-  }
-}
 
 // ═══════════════════════════════════════════════════════════════
 //  LOCAL STORAGE WRAPPER
@@ -794,484 +682,49 @@ const S = {
 
 // ═══════════════════════════════════════════════════════════════
 //  DATABASE HELPERS
-//  Thin wrappers over Supabase SDK. All return null/undefined
+//  Storage helpers
 //  gracefully when offline or not authenticated, so callers
 //  don't need to null-check sb/currentUser everywhere.
 // ═══════════════════════════════════════════════════════════════
 
 /** SELECT rows from a table for the current user */
-async function dbSelect(table, extraFilter) {
-  if (!sb || offlineMode || !currentUser) return null;
-  try {
-    let q = sb.from(table).select('*').eq('user_id', currentUser.id);
-    if (extraFilter) q = extraFilter(q);
-    const { data, error } = await q;
-    if (error) throw error;
-    return data;
-  } catch(e) { console.warn('DB read error', table, e); return null; }
-}
-
 /** UPSERT a row (INSERT or UPDATE based on primary key) */
-async function dbUpsert(table, row) {
-  if (!sb || offlineMode || !currentUser) return null;
-  try {
-    const { data, error } = await sb.from(table)
-      .upsert({ ...row, user_id: currentUser.id })
-      .select();
-    if (error) throw error;
-    return data?.[0] || null;
-  } catch(e) { console.warn('DB write error', table, e); return null; }
-}
-
 /** DELETE a row by its primary key id */
-async function dbDelete(table, id) {
-  if (!sb || offlineMode || !currentUser) return;
-  try {
-    await sb.from(table).delete().eq('id', id).eq('user_id', currentUser.id);
-  } catch(e) { console.warn('DB delete error', table, e); }
-}
-
 /** DELETE rows matching a column/value filter */
-async function dbDeleteWhere(table, col, val) {
-  if (!sb || offlineMode || !currentUser) return;
-  try {
-    await sb.from(table).delete().eq(col, val).eq('user_id', currentUser.id);
-  } catch(e) { console.warn('DB delete error', table, e); }
-}
-
 // ═══════════════════════════════════════════════════════════════
 //  AUTHENTICATION
 // ═══════════════════════════════════════════════════════════════
 
-/** Entry point — checks for an existing session on page load.
- * FIX: Instead of showing the login wall when there's no active session,
- * immediately load from localStorage so the app is usable right away,
- * then attempt a silent background token refresh. If it succeeds, switch
- * to online mode and sync fresh data without interrupting the user.
- */
-async function initAuth() {
-  if (!sb) { showLogin(true); return; } // No Supabase — show config fields
+// ── App initialisation — local-only mode ────────────────────────
+// All data lives in localStorage and persists across refreshes.
 
-  const { data: { session } } = await sb.auth.getSession();
-  if (session?.user) {
-    currentUser = session.user;
-    launchApp();
-    return;
-  }
-
-  // No active session — load localStorage immediately so app is usable now.
-  offlineMode = true;
-  goOffline();
-
-  // Silent background re-auth: if the refresh token is still valid,
-  // switch to online mode and pull fresh data without interrupting the user.
-  try {
-    const { data: refreshed } = await sb.auth.refreshSession();
-    if (refreshed?.user) {
-      currentUser = refreshed.user;
-      offlineMode = false;
-      updateUserChip();
-      loadAllFromDB();
-    }
-  } catch (_) { /* Silent fail — stay in offline mode */ }
-
-  // Keep currentUser in sync on future auth state changes (e.g. token refresh)
-  sb.auth.onAuthStateChange((_event, newSession) => {
-    currentUser = newSession?.user || null;
-  });
-}
-
-/** Show the login screen, optionally displaying the "no Supabase" banner */
-function showLogin(noSupa) {
-  document.getElementById('login-screen').style.display = 'flex';
-  document.getElementById('app-shell').style.display = 'none';
-  if (noSupa) {
-    document.getElementById('supa-banner').style.display = 'block';
-    document.getElementById('supa-config-fields').style.display = 'block';
-  }
-}
-
-/** Hide login, show app, load all data */
-function launchApp() {
-  document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('app-shell').style.display = 'flex';
-  updateUserChip();
-  loadAllFromDB().then(() => {
-    buildDaySchedule(); buildWeek(); refreshToday();
-    renderTodos(); renderNotesList(); renderScripts();
-    renderDomains(); renderImpact(); updateImpactStats();
-  });
-}
-
-/** Skip auth entirely — use localStorage only */
-function goOffline() {
-  offlineMode = true;
-  document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('app-shell').style.display = 'flex';
-  updateUserChip();
+function initApp() {
   buildDaySchedule(); buildWeek(); refreshToday();
-  renderTodos(); renderNotesList(); renderScripts();
-  renderDomains(); renderImpact(); updateImpactStats();
+  renderTodos(); renderNotesList(); renderFolderTree();
+  renderScripts(); renderDomains(); renderImpact(); updateImpactStats();
 }
 
-function switchLoginTab(tab) {
-  document.getElementById('signin-form').style.display = tab === 'signin' ? 'block' : 'none';
-  document.getElementById('signup-form').style.display = tab === 'signup' ? 'block' : 'none';
-  document.getElementById('tab-signin').classList.toggle('active', tab === 'signin');
-  document.getElementById('tab-signup').classList.toggle('active', tab === 'signup');
-  clearLoginMsg();
-}
-
-function showLoginErr(msg) {
-  const el = document.getElementById('login-err');
-  el.textContent = msg; el.style.display = 'block';
-  document.getElementById('login-ok').style.display = 'none';
-}
-function showLoginOk(msg) {
-  const el = document.getElementById('login-ok');
-  el.textContent = msg; el.style.display = 'block';
-  document.getElementById('login-err').style.display = 'none';
-}
-function clearLoginMsg() {
-  document.getElementById('login-err').style.display = 'none';
-  document.getElementById('login-ok').style.display = 'none';
-}
-
-async function signIn() {
-  if (!sb) { showLoginErr('Supabase not configured.'); return; }
-  const email = document.getElementById('si-email').value.trim();
-  const pass  = document.getElementById('si-pass').value;
-  if (!email || !pass) { showLoginErr('Please fill in email and password.'); return; }
-  const btn = document.getElementById('signin-btn');
-  btn.textContent = 'Signing in...'; btn.disabled = true;
-  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
-  btn.textContent = 'Sign In'; btn.disabled = false;
-  if (error) { showLoginErr(error.message); return; }
-  currentUser = data.user;
-  launchApp();
-}
-
-async function signUp() {
-  if (!sb) { showLoginErr('Supabase not configured.'); return; }
-  const name  = document.getElementById('su-name').value.trim() || 'User';
-  const email = document.getElementById('su-email').value.trim();
-  const pass  = document.getElementById('su-pass').value;
-  if (!email || !pass) { showLoginErr('Please fill in all fields.'); return; }
-  if (pass.length < 6) { showLoginErr('Password must be at least 6 characters.'); return; }
-  const btn = document.getElementById('signup-btn');
-  btn.textContent = 'Creating account...'; btn.disabled = true;
-  const { data, error } = await sb.auth.signUp({ email, password: pass, options: { data: { name } } });
-  btn.textContent = 'Create Account'; btn.disabled = false;
-  if (error) { showLoginErr(error.message); return; }
-  if (data.session) { currentUser = data.user; launchApp(); }
-  else showLoginOk('Account created! Check your email to confirm, then sign in.');
-}
-
-/**
- * FIX: Original code had `if (supabase)` which checks the Supabase
- * library object (always truthy) instead of our client `sb`.
- * Changed to `if (sb)` so it correctly skips signOut when offline.
- */
-async function signOut() {
-  if (sb) await sb.auth.signOut(); // FIX: was `if (supabase)` — wrong variable
-  currentUser = null; offlineMode = false;
-  showLogin(false);
-}
-
-/** Update the avatar chip in the topbar with the current auth state */
 function updateUserChip() {
-  const chip = document.getElementById('user-chip'); if (!chip) return;
-  if (offlineMode) {
-    chip.textContent = '⚠️ Offline';
-    chip.title = 'Offline mode — data saved locally only. Click to go to login.';
-  } else if (currentUser) {
-    chip.textContent = '🟢 ' + (currentUser.email?.split('@')[0] || 'Signed in');
-    chip.title = 'Click to sign out';
-  }
+  const el = document.getElementById('user-chip');
+  if (el) el.style.display = 'none'; // No auth — hide chip
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  LOAD ALL DATA FROM DATABASE
-//  Called once on login. Merges DB data with localStorage,
-//  preferring DB data when both exist.
-// ═══════════════════════════════════════════════════════════════
-
-async function loadAllFromDB() {
-  if (!sb || offlineMode || !currentUser) return;
-
-  // ── Todos ──
-  const dbTodos = await dbSelect('todos', q => q.eq('archived', false).order('created_at', {ascending:false}));
-  if (dbTodos !== null) {
-    // FIX: Merge — keep any locally-created todos (large timestamp IDs) that
-    // haven't synced to Supabase yet, so a failed sync doesn't wipe them on refresh.
-    const localUnsyncedTodos = (S.get('gw_todos_v4') || []).filter(t =>
-      typeof t.id === 'number' && t.id > 9_999_999_999
-    );
-    todos = dbTodos.map(r => ({
-      id: r.id,
-      text: r.text,
-      desc: r.description,
-      domain: r.domain,
-      priority: r.priority,
-      done: r.done,
-      doneAt: r.done_at,
-      created: r.created_at
-    }));
-    // Prepend any unsynced local todos so they aren't lost on refresh
-    if (localUnsyncedTodos.length) todos = [...localUnsyncedTodos, ...todos];
-    S.set('gw_todos_v4', todos);
-  }
-
-  // ── Archived Todos ──
-  const dbArch = await dbSelect('todos', q => q.eq('archived', true).order('done_at', {ascending:false}));
-  if (dbArch !== null) {
-    todoArchive = dbArch.map(r => ({
-      id: r.id, text: r.text, desc: r.description,
-      domain: r.domain, priority: r.priority,
-      done: true, doneAt: r.done_at
-    }));
-    S.set('gw_archive_v1', todoArchive);
-  }
-
-  // ── Notes ──
-  // FIX: folder_id is NOT synced to DB (local folder IDs like 'nf1'
-  // would fail FK constraints on typed DB columns). Instead, we
-  // preserve folderId assignments from the local notes cache.
-  // Build a map of noteId → folderId from what's currently in localStorage.
-  const localNotesSnapshot = S.get('gw_notes_v3') || [];
-  const folderIdByNoteId = {};
-  localNotesSnapshot.forEach(n => {
-    if (n.id && n.folderId) folderIdByNoteId[String(n.id)] = n.folderId;
-  });
-
-  const dbNotes = await dbSelect('notes', q => q.order('updated_at', {ascending:false}));
-  if (dbNotes !== null) {
-    // FIX: Keep any locally-created notes (IDs starting with 'n') that
-    // haven't made it to Supabase yet — prevents refresh wiping unsaved work.
-    const localUnsyncedNotes = localNotesSnapshot.filter(n =>
-      typeof n.id === 'string' && n.id.startsWith('n')
-    );
-    notes = dbNotes.map(r => ({
-      id: r.id + '',
-      folderId: folderIdByNoteId[r.id + ''] || null,
-      title: r.title,
-      body: r.body,
-      category: r.category || 'General',
-      updated: new Date(r.updated_at).getTime()
-    }));
-    // Prepend any unsynced local notes so they survive the refresh
-    if (localUnsyncedNotes.length) notes = [...localUnsyncedNotes, ...notes];
-    S.set('gw_notes_v3', notes);
-  }
-
-  // Folders always come from localStorage (never synced to DB)
-  noteFolders = S.get('gw_nf_v2') || noteFolders;
-
-  // ── Scripts ──
-  const dbScripts = await dbSelect('scripts', q => q.order('created_at', {ascending:false}));
-  if (dbScripts && dbScripts.length > 0) {
-    scripts = dbScripts.map(r => ({
-      id: r.id + '', name: r.name, lang: r.language,
-      desc: r.description, section: r.section || 'General',
-      tags: r.tags, code: r.code
-    }));
-    S.set('gw_scripts_v2', scripts);
-  }
-
-  // ── Impacts ──
-  const dbImpacts = await dbSelect('impacts', q => q.order('created_at', {ascending:false}));
-  if (dbImpacts && dbImpacts.length > 0) {
-    impacts = dbImpacts.map(r => ({
-      id: r.id, title: r.title, result: r.result,
-      domain: r.domain, type: r.type, metric: r.metric, date: r.created_at
-    }));
-    S.set('gw_impacts_v1', impacts);
-  }
-
-  // ── Projects ──
-  const dbProjects = await dbSelect('projects');
-  if (dbProjects && dbProjects.length > 0) {
-    projects = {};
-    dbProjects.forEach(r => {
-      if (!projects[r.domain_id]) projects[r.domain_id] = [];
-      projects[r.domain_id].push({
-        id: r.id + '', name: r.name, status: r.status,
-        deadline: r.deadline, desc: r.description,
-        notes: r.notes, tasks: r.tasks || []
-      });
-    });
-    S.set('gw_projects_v1', projects);
-  }
-
-  // ── Schedule Blocks ──
-  const dbSched = await dbSelect('schedule_blocks', q => q.order('sort_order'));
-  if (dbSched && dbSched.length > 0) {
-    schedBlocks = dbSched.map(r => ({
-      id: r.block_id, time: r.time_label, title: r.title,
-      desc: r.description, cls: r.color
-    }));
-    S.set('gw_sched_v1', schedBlocks);
-  }
-
-  // ── Week Days ──
-  const dbDays = await dbSelect('week_days', q => q.order('id'));
-  if (dbDays && dbDays.length > 0) {
-    dayData = dbDays.map(r => ({
-      id: r.day_id, name: r.name, theme: r.theme,
-      focus: r.focus, tasks: r.tasks || []
-    }));
-    S.set('gw_days_v1', dayData);
-  }
-}
 
 // ═══════════════════════════════════════════════════════════════
-//  SYNC HELPERS — push local changes to Supabase
+//  (sync helpers removed — app is localStorage-only)
 //  Each function is called after the corresponding local write.
 //  All are no-ops when offline or not authenticated.
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Sync a todo to the DB.
- * FIX: After a new todo is INSERT'd, the DB-assigned ID is written
- * back to the local todo object so future updates (toggle, delete)
- * use the correct DB row ID instead of the local Date.now() ID.
- */
-async function syncTodo(t) {
-  if (!sb || offlineMode || !currentUser) return;
-  try {
-    // Date.now() IDs are 13 digits — larger than any DB auto-increment.
-    // If id is a large number, this is a new record → omit id so DB assigns one.
-    const isNew = typeof t.id === 'number' && t.id > 9999999999;
-    const row = {
-      user_id: currentUser.id,
-      text: t.text,
-      description: t.desc || '',
-      domain: t.domain,
-      priority: t.priority,
-      done: t.done,
-      archived: false,
-      done_at: t.doneAt || null
-    };
-    if (!isNew) row.id = t.id; // Include id only for existing records (UPDATE path)
-    const { data, error } = await sb.from('todos').upsert(row).select();
-    if (error) throw error;
-    // FIX: Update local object's id with the DB-assigned id so subsequent
-    // operations (toggle, delete) reference the correct row.
-    if (data?.[0] && isNew) {
-      t.id = data[0].id;
-      S.set('gw_todos_v4', todos); // Persist the updated id
-    }
-  } catch(e) { console.warn('syncTodo error:', e); }
-}
-
-async function syncTodoArchive(t) {
-  if (!sb || offlineMode || !currentUser) return;
-  try {
-    await sb.from('todos')
-      .update({ archived: true, done: true, done_at: t.doneAt })
-      .eq('id', t.id)
-      .eq('user_id', currentUser.id);
-  } catch(e) { console.warn('syncTodoArchive error:', e); }
-}
-
-async function syncDeleteTodo(id) { await dbDelete('todos', id); }
-
-/**
  * Sync a note to the DB.
  * FIX: folder_id is intentionally NOT sent to the database.
- * Local folder IDs (e.g. 'nf1') are not valid foreign keys in Supabase
+ * Local folder IDs (e.g. 'nf1') are stored locally only.
  * and would cause constraint errors. Folder assignments are managed
  * entirely in localStorage via the notes array's folderId property.
  * NOTE: This means folder assignments are per-device. If you log in
  * on a new device, notes will appear unfoldered but content is preserved.
  */
-async function syncNote(n) {
-  if (!sb || offlineMode || !currentUser) return;
-  try {
-    const isLocalId = typeof n.id === 'string' && n.id.startsWith('n');
-    const row = {
-      user_id: currentUser.id,
-      title: n.title || 'Untitled',
-      body: n.body || '',
-      category: n.category || 'General',
-      // folder_id deliberately omitted — folder assignments are local only
-      updated_at: new Date().toISOString()
-    };
-    if (isLocalId) {
-      // New note — INSERT and capture DB-assigned id
-      const { data, error } = await sb.from('notes').insert(row).select();
-      if (error) { console.error('syncNote insert error:', error); showSyncStatus('⚠️ Note not synced: ' + error.message); return; }
-      if (data?.[0]) {
-        const oldId = n.id;
-        n.id = data[0].id + '';
-        // The folderId is on the note object itself — saveNotes() persists it
-        saveNotes();
-      }
-    } else {
-      // Existing note — UPDATE by id
-      const { error } = await sb.from('notes')
-        .update({ title: row.title, body: row.body, category: row.category, updated_at: row.updated_at })
-        .eq('id', Number(n.id))
-        .eq('user_id', currentUser.id);
-      if (error) { console.error('syncNote update error:', error); showSyncStatus('⚠️ Note not synced: ' + error.message); }
-    }
-  } catch(e) { console.error('syncNote exception:', e); }
-}
-
-function showSyncStatus(msg) {
-  const el = document.getElementById('note-saved');
-  if (el) { el.style.color = 'var(--red)'; el.textContent = msg; setTimeout(() => { el.style.color = 'var(--green)'; }, 4000); }
-}
-async function syncDeleteNote(id) { await dbDelete('notes', Number(id)); }
-
-async function syncScript(sc) {
-  if (!sb || offlineMode || !currentUser) return;
-  const isNew = isNaN(Number(sc.id)) || sc.id.startsWith('s');
-  const row = { name: sc.name, language: sc.lang, description: sc.desc, tags: sc.tags, code: sc.code, section: sc.section || 'General' };
-  if (!isNew) row.id = Number(sc.id);
-  const result = await dbUpsert('scripts', row);
-  if (result && isNew) { sc.id = result.id + ''; S.set('gw_scripts_v2', scripts); }
-}
-async function syncDeleteScript(id) { await dbDelete('scripts', Number(id)); }
-
-async function syncImpact(imp) {
-  if (!sb || offlineMode || !currentUser) return;
-  const isNew = typeof imp.id === 'number' && imp.id > 9999999999;
-  const row = { title: imp.title, result: imp.result, domain: imp.domain, type: imp.type, metric: imp.metric };
-  if (!isNew) row.id = imp.id;
-  const result = await dbUpsert('impacts', row);
-  if (result && isNew) { imp.id = result.id; S.set('gw_impacts_v1', impacts); }
-}
-async function syncDeleteImpact(id) { await dbDelete('impacts', id); }
-
-async function syncProject(domId, p) {
-  if (!sb || offlineMode || !currentUser) return;
-  const isNew = isNaN(Number(p.id)) || p.id.startsWith('p');
-  const row = { domain_id: domId, name: p.name, status: p.status, deadline: p.deadline || '', description: p.desc || '', notes: p.notes || '', tasks: p.tasks || [] };
-  if (!isNew) row.id = Number(p.id);
-  const result = await dbUpsert('projects', row);
-  if (result && isNew) { p.id = result.id + ''; S.set('gw_projects_v1', projects); }
-}
-async function syncDeleteProject(id) { await dbDelete('projects', Number(id)); }
-
-async function syncSchedule() {
-  if (!sb || offlineMode || !currentUser) return;
-  // Delete-then-reinsert strategy. If the reinsert loop fails midway,
-  // data loss is possible. Acceptable tradeoff for simplicity here.
-  await dbDeleteWhere('schedule_blocks', 'user_id', currentUser.id);
-  for (let i = 0; i < schedBlocks.length; i++) {
-    const b = schedBlocks[i];
-    await dbUpsert('schedule_blocks', { block_id: b.id, time_label: b.time, title: b.title, description: b.desc || '', color: b.cls || 'green', sort_order: i });
-  }
-}
-async function syncWeekDays() {
-  if (!sb || offlineMode || !currentUser) return;
-  await dbDeleteWhere('week_days', 'user_id', currentUser.id);
-  for (const d of dayData) {
-    await dbUpsert('week_days', { day_id: d.id, name: d.name, theme: d.theme, focus: d.focus || '', tasks: d.tasks || [] });
-  }
-}
-
 // ═══════════════════════════════════════════════════════════════
 //  HOME PANEL — Bigger Picture toggle
 // ═══════════════════════════════════════════════════════════════
@@ -1353,8 +806,7 @@ function addTodo() {
   const text = document.getElementById('td-text').value.trim();
   if (!text) return;
   const t = {
-    id: Date.now(), // Local ID — will be replaced with DB id after syncTodo()
-    text, desc: '',
+    id: Date.now(), // Local ID — will be replaced with DB id aftertext, desc: '',
     domain: document.getElementById('td-dom').value,
     priority: document.getElementById('td-pri').value,
     done: false,
@@ -1363,7 +815,6 @@ function addTodo() {
   todos.unshift(t);
   S.set('gw_todos_v4', todos);
   document.getElementById('td-text').value = '';
-  syncTodo(t); // Async — updates t.id when DB responds
   renderTodos();
 }
 
@@ -1371,17 +822,13 @@ function toggleTodo(id) {
   const t = todos.find(x => x.id === id); if (!t) return;
   t.done = !t.done;
   if (t.done) t.doneAt = new Date().toISOString();
-  S.set('gw_todos_v4', todos);
-  syncTodo(t);
-  renderTodos();
+  S.set('gw_todos_v4', todos);renderTodos();
   updateTodayProgress();
 }
 
 function deleteTodo(id) {
   todos = todos.filter(x => x.id !== id);
-  S.set('gw_todos_v4', todos);
-  syncDeleteTodo(id);
-  renderTodos();
+  S.set('gw_todos_v4', todos);renderTodos();
   updateTodayProgress();
 }
 
@@ -1403,7 +850,7 @@ function clearDone() {
   const doneIds = todos.filter(t => t.done).map(t => t.id);
   todos = todos.filter(x => !x.done);
   S.set('gw_todos_v4', todos);
-  doneIds.forEach(id => syncDeleteTodo(id));
+  doneIds.forEach(id =>);
   renderTodos(); updateTodayProgress();
 }
 
@@ -1414,7 +861,7 @@ function archiveDone() {
   todos = todos.filter(t => !t.done);
   S.set('gw_todos_v4', todos);
   S.set('gw_archive_v1', todoArchive);
-  done.forEach(t => syncTodoArchive(t));
+  done.forEach(t =>);
   renderTodos(); updateTodayProgress();
   // FIX: was alert() — now uses non-blocking toast
   showToast(`${done.length} task${done.length>1?'s':''} archived.`, 'success');
@@ -1476,9 +923,7 @@ function saveTaskEdit(id, isArchive) {
   t.domain = document.getElementById('te-dom').value;
   t.priority = document.getElementById('te-pri').value;
   if (isArchive) S.set('gw_archive_v1', todoArchive);
-  else S.set('gw_todos_v4', todos);
-  syncTodo(t);
-  closeModal(); renderTodos(); updateTodayProgress();
+  else S.set('gw_todos_v4', todos);closeModal(); renderTodos(); updateTodayProgress();
 }
 
 function restoreFromArchive(id) {
@@ -1611,8 +1056,8 @@ const defaultDayData = [
 let schedBlocks = S.get('gw_sched_v1') || JSON.parse(JSON.stringify(defaultSchedBlocks));
 let dayData     = S.get('gw_days_v1')  || JSON.parse(JSON.stringify(defaultDayData));
 
-function saveSchedule() { S.set('gw_sched_v1', schedBlocks); syncSchedule(); }
-function saveDays()     { S.set('gw_days_v1',  dayData);    syncWeekDays(); }
+function saveSchedule() { S.set('gw_sched_v1', schedBlocks);}
+function saveDays()     { S.set('gw_days_v1',  dayData);}
 
 // ── Daily Schedule render + edit ──
 
@@ -2172,9 +1617,7 @@ function saveNewProject(domId) {
   if (!projects[domId]) projects[domId] = [];
   const p = { id:'p'+Date.now(), name, status:document.getElementById('m-pstatus').value, deadline:document.getElementById('m-pdeadline').value, desc:document.getElementById('m-pdesc').value, notes:document.getElementById('m-pnotes').value, tasks:[], pct:0 };
   projects[domId].push(p);
-  S.set('gw_projects_v1', projects);
-  syncProject(domId, p);
-  closeModal(); rerenderDomainKeepOpen(domId);
+  S.set('gw_projects_v1', projects);closeModal(); rerenderDomainKeepOpen(domId);
 }
 function openEditProject(domId, projId) {
   const p = projects[domId]?.find(x => x.id === projId); if (!p) return;
@@ -2200,9 +1643,7 @@ function updateProject(domId, projId) {
   p.deadline = document.getElementById('m-pdeadline').value;
   p.desc     = document.getElementById('m-pdesc').value;
   p.notes    = document.getElementById('m-pnotes').value;
-  S.set('gw_projects_v1', projects);
-  syncProject(domId, p);
-  closeModal(); rerenderDomainKeepOpen(domId);
+  S.set('gw_projects_v1', projects);closeModal(); rerenderDomainKeepOpen(domId);
 }
 function addProjTask(domId, projId) {
   openModal(`
@@ -2221,16 +1662,12 @@ function saveProjTask(domId, projId) {
   const p = projects[domId]?.find(x => x.id === projId); if (!p) return;
   if (!p.tasks) p.tasks = [];
   p.tasks.push({ text, done: false });
-  S.set('gw_projects_v1', projects);
-  syncProject(domId, p);
-  closeModal(); rerenderDomainKeepOpen(domId);
+  S.set('gw_projects_v1', projects);closeModal(); rerenderDomainKeepOpen(domId);
 }
 function toggleProjTask(domId, projId, idx) {
   const p = projects[domId]?.find(x => x.id === projId); if (!p) return;
   p.tasks[idx].done = !p.tasks[idx].done;
-  S.set('gw_projects_v1', projects);
-  syncProject(domId, p);
-  rerenderDomainKeepOpen(domId);
+  S.set('gw_projects_v1', projects);rerenderDomainKeepOpen(domId);
 }
 function deleteProject(domId, projId) {
   openModal(`
@@ -2243,12 +1680,10 @@ function deleteProject(domId, projId) {
 }
 function doDeleteProject(domId, projId) {
   projects[domId] = projects[domId].filter(x => x.id !== projId);
-  S.set('gw_projects_v1', projects);
-  syncDeleteProject(projId);
-  closeModal(); rerenderDomainKeepOpen(domId);
+  S.set('gw_projects_v1', projects);closeModal(); rerenderDomainKeepOpen(domId);
 }
 // ═══════════════════════════════════════════════════════════════
-//  NOTES — nested folder system with Supabase sync
+//  NOTES — nested folder system (localStorage)
 // ═══════════════════════════════════════════════════════════════
 
 /*
@@ -2461,7 +1896,7 @@ function executeFolderDelete(fid) {
     const s = document.getElementById('note-saved');     if (s) s.textContent = '—';
   }
   saveFolders(); saveNotes();
-  deletedNoteIds.forEach(id => syncDeleteNote(id));
+  deletedNoteIds.forEach(id =>);
   closeModal(); renderNotesList();
 }
 
@@ -2483,9 +1918,7 @@ function expandParents(fid) {
 function createNoteInFolder(fid) {
   const n = { id:'n'+Date.now(), folderId:fid, title:'Untitled Note', body:'', category:'General', updated:Date.now() };
   notes.unshift(n);
-  saveNotes();
-  syncNote(n); // Async — updates n.id with DB id when done
-  expandParents(fid);
+  saveNotes();expandParents(fid);
   saveFolders();
   currentNoteId = n.id;
   loadNote(n.id);
@@ -2545,9 +1978,7 @@ function saveCurrentNote(silent) {
   n.title   = (titleEl?.value || '').trim() || 'Untitled';
   n.body    = bodyEl?.value || '';
   n.updated = Date.now();
-  saveNotes();
-  syncNote(n); // NOTE: async — race condition possible on rapid saves but acceptable
-  if (!silent) {
+  saveNotes();if (!silent) {
     if (savedEl) savedEl.textContent = '✓ Saved ' + new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
     updateNoteWordCount();
     updateNoteTitleInSidebar(currentNoteId, n.title);
@@ -2589,8 +2020,7 @@ function executeDeleteCurrentNote() {
   const id = currentNoteId;
   notes = notes.filter(x => x.id !== id);
   currentNoteId = null;
-  saveNotes(); syncDeleteNote(id);
-  const titleEl = document.getElementById('note-title-inp'); if (titleEl) titleEl.value = '';
+  saveNotes();const titleEl = document.getElementById('note-title-inp'); if (titleEl) titleEl.value = '';
   const bodyEl  = document.getElementById('note-body');      if (bodyEl)  bodyEl.value  = '';
   const savedEl = document.getElementById('note-saved');     if (savedEl) savedEl.textContent = '—';
   closeModal(); renderNotesList();
@@ -2758,8 +2188,7 @@ function saveScriptEdit(id) {
   s.desc    = document.getElementById('se-sdesc').value;
   s.tags    = document.getElementById('se-stags').value;
   s.code    = document.getElementById('se-scode').value;
-  S.set('gw_scripts_v2', scripts); syncScript(s);
-  closeModal(); renderScripts();
+  S.set('gw_scripts_v2', scripts);closeModal(); renderScripts();
 }
 
 function deleteScript(id) {
@@ -2773,8 +2202,7 @@ function deleteScript(id) {
 }
 function doDeleteScript(id) {
   scripts = scripts.filter(x => x.id !== id);
-  S.set('gw_scripts_v2', scripts); syncDeleteScript(id);
-  closeModal(); renderScripts();
+  S.set('gw_scripts_v2', scripts);closeModal(); renderScripts();
 }
 
 function openNewScript() {
@@ -2800,8 +2228,7 @@ function openNewScript() {
 function saveNewScript() {
   const name = document.getElementById('m-sname').value.trim(); if (!name) return;
   const sc = { id:'s'+Date.now(), name, lang:document.getElementById('m-slang').value, section:document.getElementById('m-ssec').value, desc:document.getElementById('m-sdesc').value, tags:document.getElementById('m-stags').value, code:document.getElementById('m-scode').value };
-  scripts.unshift(sc); S.set('gw_scripts_v2', scripts); syncScript(sc);
-  closeModal(); renderScripts();
+  scripts.unshift(sc); S.set('gw_scripts_v2', scripts);closeModal(); renderScripts();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -3143,7 +2570,7 @@ function copyRapSheet() {
   // navigation — no JS-driven tab system needed here.
   document.addEventListener('DOMContentLoaded', () => {
 
-    // Save current note to localStorage on page close (sync only — no async Supabase)
+    // Save current note to localStorage on page close
     window.addEventListener('beforeunload', () => saveCurrentNote(true));
 
     // Modal: click the #modal backdrop to dismiss
@@ -3164,14 +2591,14 @@ function copyRapSheet() {
     tick();
     setInterval(tick, 1000);
 
-    // Auth init — loads localStorage immediately, attempts background Supabase re-auth
-    initAuth();
+    // Launch app directly from localStorage
+    initApp();
   });
 
 
   /**
    * Alias for renderNotesList — renders the full folder tree + notes sidebar.
-   * Called from init, loadLocalData, and loadAllFromDB.
+   * Called from initApp() when switching to the notes panel.
    * The sidebar panel (#notes-list-panel) contains both the folder tree
    * and the note items within each folder, so one render covers both.
    */
