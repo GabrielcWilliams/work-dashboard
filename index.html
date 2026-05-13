@@ -843,19 +843,41 @@ async function dbDeleteWhere(table, col, val) {
 //  AUTHENTICATION
 // ═══════════════════════════════════════════════════════════════
 
-/** Entry point — checks for an existing session on page load */
+/** Entry point — checks for an existing session on page load.
+ * FIX: Instead of showing the login wall when there's no active session,
+ * immediately load from localStorage so the app is usable right away,
+ * then attempt a silent background token refresh. If it succeeds, switch
+ * to online mode and sync fresh data without interrupting the user.
+ */
 async function initAuth() {
-  if (!sb) { showLogin(true); return; } // No Supabase client — show config fields
+  if (!sb) { showLogin(true); return; } // No Supabase — show config fields
+
   const { data: { session } } = await sb.auth.getSession();
   if (session?.user) {
     currentUser = session.user;
     launchApp();
-  } else {
-    showLogin(false);
+    return;
   }
-  // Keep currentUser in sync when auth state changes (e.g. token refresh)
-  sb.auth.onAuthStateChange((_event, session) => {
-    currentUser = session?.user || null;
+
+  // No active session — load localStorage immediately so app is usable now.
+  offlineMode = true;
+  goOffline();
+
+  // Silent background re-auth: if the refresh token is still valid,
+  // switch to online mode and pull fresh data without interrupting the user.
+  try {
+    const { data: refreshed } = await sb.auth.refreshSession();
+    if (refreshed?.user) {
+      currentUser = refreshed.user;
+      offlineMode = false;
+      updateUserChip();
+      loadAllFromDB();
+    }
+  } catch (_) { /* Silent fail — stay in offline mode */ }
+
+  // Keep currentUser in sync on future auth state changes (e.g. token refresh)
+  sb.auth.onAuthStateChange((_event, newSession) => {
+    currentUser = newSession?.user || null;
   });
 }
 
@@ -877,7 +899,7 @@ function launchApp() {
   loadAllFromDB().then(() => {
     buildDaySchedule(); buildWeek(); refreshToday();
     renderTodos(); renderNotesList(); renderScripts();
-    renderDomains(); renderImpact();
+    renderDomains(); renderImpact(); updateImpactStats();
   });
 }
 
@@ -889,7 +911,7 @@ function goOffline() {
   updateUserChip();
   buildDaySchedule(); buildWeek(); refreshToday();
   renderTodos(); renderNotesList(); renderScripts();
-  renderDomains(); renderImpact();
+  renderDomains(); renderImpact(); updateImpactStats();
 }
 
 function switchLoginTab(tab) {
@@ -979,7 +1001,12 @@ async function loadAllFromDB() {
 
   // ── Todos ──
   const dbTodos = await dbSelect('todos', q => q.eq('archived', false).order('created_at', {ascending:false}));
-  if (dbTodos && dbTodos.length > 0) {
+  if (dbTodos !== null) {
+    // FIX: Merge — keep any locally-created todos (large timestamp IDs) that
+    // haven't synced to Supabase yet, so a failed sync doesn't wipe them on refresh.
+    const localUnsyncedTodos = (S.get('gw_todos_v4') || []).filter(t =>
+      typeof t.id === 'number' && t.id > 9_999_999_999
+    );
     todos = dbTodos.map(r => ({
       id: r.id,
       text: r.text,
@@ -988,14 +1015,16 @@ async function loadAllFromDB() {
       priority: r.priority,
       done: r.done,
       doneAt: r.done_at,
-      created: r.created_at  // FIX: was missing — created field now preserved
+      created: r.created_at
     }));
+    // Prepend any unsynced local todos so they aren't lost on refresh
+    if (localUnsyncedTodos.length) todos = [...localUnsyncedTodos, ...todos];
     S.set('gw_todos_v4', todos);
   }
 
   // ── Archived Todos ──
   const dbArch = await dbSelect('todos', q => q.eq('archived', true).order('done_at', {ascending:false}));
-  if (dbArch && dbArch.length > 0) {
+  if (dbArch !== null) {
     todoArchive = dbArch.map(r => ({
       id: r.id, text: r.text, desc: r.description,
       domain: r.domain, priority: r.priority,
@@ -1009,22 +1038,29 @@ async function loadAllFromDB() {
   // would fail FK constraints on typed DB columns). Instead, we
   // preserve folderId assignments from the local notes cache.
   // Build a map of noteId → folderId from what's currently in localStorage.
-  const localNotesForFolderMap = S.get('gw_notes_v3') || [];
+  const localNotesSnapshot = S.get('gw_notes_v3') || [];
   const folderIdByNoteId = {};
-  localNotesForFolderMap.forEach(n => {
+  localNotesSnapshot.forEach(n => {
     if (n.id && n.folderId) folderIdByNoteId[String(n.id)] = n.folderId;
   });
 
   const dbNotes = await dbSelect('notes', q => q.order('updated_at', {ascending:false}));
-  if (dbNotes && dbNotes.length > 0) {
+  if (dbNotes !== null) {
+    // FIX: Keep any locally-created notes (IDs starting with 'n') that
+    // haven't made it to Supabase yet — prevents refresh wiping unsaved work.
+    const localUnsyncedNotes = localNotesSnapshot.filter(n =>
+      typeof n.id === 'string' && n.id.startsWith('n')
+    );
     notes = dbNotes.map(r => ({
       id: r.id + '',
-      folderId: folderIdByNoteId[r.id + ''] || null, // Restore local folder assignment
+      folderId: folderIdByNoteId[r.id + ''] || null,
       title: r.title,
       body: r.body,
       category: r.category || 'General',
       updated: new Date(r.updated_at).getTime()
     }));
+    // Prepend any unsynced local notes so they survive the refresh
+    if (localUnsyncedNotes.length) notes = [...localUnsyncedNotes, ...notes];
     S.set('gw_notes_v3', notes);
   }
 
@@ -1277,7 +1313,7 @@ function nav(name, btn) {
   if (name === 'domains') renderDomains();
   if (name === 'week')    buildWeek();
   if (name === 'day')     buildDaySchedule();
-  if (name === 'impact')  renderImpact();
+  if (name === 'impact')  { renderImpact(); updateImpactStats(); }
 }
 
 function toggleMenu() {
@@ -2871,345 +2907,264 @@ function clearEmail() {
   /** Persistent impact entries; each entry is:
    *  { id, date, category, title, metric, detail, tags }
    */
-  let impacts     = S.get('gw_impacts_v1') || [];
-  let impactFilter = 'all'; // current category filter
+// ── Impact Log data ──────────────────────────────────────────────
+// Each entry: { id, date, domain, type, title, result, metric }
+// date is auto-set to today; domain/type from dropdowns; result is the
+// textarea; metric is the optional quantified result field.
+let impacts     = S.get('gw_impacts_v1') || [];
+let impactFilter = 'all';
 
-  /** Save impacts array to localStorage */
-  function saveImpacts() { S.set('gw_impacts_v1', impacts); }
+function saveImpacts() { S.set('gw_impacts_v1', impacts); }
 
-  /** Add a new impact entry from the form fields */
-  function addImpact() {
-    const dateEl   = document.getElementById('imp-date');
-    const catEl    = document.getElementById('imp-cat');
-    const titleEl  = document.getElementById('imp-title');
-    const metricEl = document.getElementById('imp-metric');
-    const detailEl = document.getElementById('imp-detail');
-    const tagsEl   = document.getElementById('imp-tags');
+/**
+ * Add a new impact entry.
+ * FIX: reads the actual HTML element IDs: imp-title, imp-result,
+ * imp-domain, imp-type, imp-metric. Previous version read IDs that
+ * didn't exist (imp-date, imp-cat, imp-detail, imp-tags).
+ */
+function addImpact() {
+  const titleEl  = document.getElementById('imp-title');
+  const resultEl = document.getElementById('imp-result');
+  const domainEl = document.getElementById('imp-domain');
+  const typeEl   = document.getElementById('imp-type');
+  const metricEl = document.getElementById('imp-metric');
 
-    const title = titleEl?.value?.trim();
-    if (!title) { showToast('Title is required.', 'error'); return; }
+  const title = titleEl?.value?.trim();
+  if (!title) { showToast('Please enter what you did.', 'error'); return; }
 
-    const entry = {
-      id:     Date.now(),
-      date:   dateEl?.value  || new Date().toISOString().slice(0,10),
-      cat:    catEl?.value   || 'General',
-      title,
-      metric: metricEl?.value?.trim() || '',
-      detail: detailEl?.value?.trim() || '',
-      tags:   (tagsEl?.value || '').split(',').map(t => t.trim()).filter(Boolean)
-    };
+  const entry = {
+    id:     Date.now(),
+    date:   new Date().toISOString().slice(0, 10),
+    domain: domainEl?.value  || 'General',
+    type:   typeEl?.value    || 'Security Win',
+    title,
+    result: resultEl?.value?.trim() || '',
+    metric: metricEl?.value?.trim() || ''
+  };
 
-    impacts.unshift(entry); // newest first
-    saveImpacts();
-    renderImpact();
-    showToast('Impact logged!', 'success');
+  impacts.unshift(entry);
+  saveImpacts();
+  renderImpact();
+  updateImpactStats();
+  showToast('Win logged! 🏆', 'success');
 
-    // Clear form fields after save
-    if (titleEl)  titleEl.value  = '';
-    if (metricEl) metricEl.value = '';
-    if (detailEl) detailEl.value = '';
-    if (tagsEl)   tagsEl.value   = '';
-    // Leave date and category for convenience (user often logs several in a row)
+  // Clear text fields; leave dropdowns for convenience
+  if (titleEl)  titleEl.value  = '';
+  if (resultEl) resultEl.value = '';
+  if (metricEl) metricEl.value = '';
+}
+
+/**
+ * Filter impact list by domain.
+ * FIX: accepts optional btn argument (HTML passes `this`).
+ * FIX: updates active class on .fbtn elements (not .imp-filter-btn).
+ */
+function filterImpact(domain, btn) {
+  impactFilter = domain;
+  document.querySelectorAll('#impact-filters .fbtn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderImpact();
+}
+
+function deleteImpact(id) {
+  openModal(`<h3>🗑 Delete Entry</h3>
+    <p>Delete this impact entry? This cannot be undone.</p>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-red" onclick="executeDeleteImpact(${id});closeModal()">Delete</button>
+    </div>`);
+}
+
+function executeDeleteImpact(id) {
+  impacts = impacts.filter(x => x.id !== id);
+  saveImpacts();
+  renderImpact();
+  updateImpactStats();
+  showToast('Entry deleted.', 'info');
+}
+
+/**
+ * Edit modal — uses correct field names (domain, type, result, metric).
+ */
+function editImpact(id) {
+  const e = impacts.find(x => x.id === id);
+  if (!e) return;
+  const domains = ['IAM','Endpoint Security','MS Purview','Insider Risk','Compliance','Learning','General'];
+  const types   = ['Security Win','Improvement','Compliance','Automation','Incident Response','Training','Process','Collaboration'];
+  openModal(`<h3>✏️ Edit Impact Entry</h3>
+    <div class="form-row"><label>Domain</label>
+      <select id="ei-domain">${domains.map(d=>`<option value="${escAttr(d)}" ${d===e.domain?'selected':''}>${escHtml(d)}</option>`).join('')}</select>
+    </div>
+    <div class="form-row"><label>Type</label>
+      <select id="ei-type">${types.map(t=>`<option value="${escAttr(t)}" ${t===e.type?'selected':''}>${escHtml(t)}</option>`).join('')}</select>
+    </div>
+    <div class="form-row"><label>What you did</label>
+      <input id="ei-title" type="text" class="inp" value="${escAttr(e.title)}">
+    </div>
+    <div class="form-row"><label>Result / Impact</label>
+      <textarea id="ei-result" class="inp" rows="3">${escHtml(e.result||'')}</textarea>
+    </div>
+    <div class="form-row"><label>Metric</label>
+      <input id="ei-metric" type="text" class="inp" value="${escAttr(e.metric||'')}">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-green" onclick="saveImpactEdit(${id});closeModal()">Save</button>
+    </div>`);
+}
+
+function saveImpactEdit(id) {
+  const idx = impacts.findIndex(x => x.id === id);
+  if (idx === -1) return;
+  const title = document.getElementById('ei-title')?.value?.trim();
+  if (!title) { showToast('Title is required.', 'error'); return; }
+  impacts[idx] = {
+    ...impacts[idx],
+    domain: document.getElementById('ei-domain')?.value  || impacts[idx].domain,
+    type:   document.getElementById('ei-type')?.value    || impacts[idx].type,
+    title,
+    result: document.getElementById('ei-result')?.value?.trim() || '',
+    metric: document.getElementById('ei-metric')?.value?.trim() || ''
+  };
+  saveImpacts();
+  renderImpact();
+  updateImpactStats();
+  showToast('Entry updated.', 'success');
+}
+
+/**
+ * Render the impact list.
+ * FIX: uses correct field names (domain, type, result, metric).
+ * Backward-compatible: old entries with 'cat'/'detail' still render.
+ */
+function renderImpact() {
+  const container = document.getElementById('impact-list');
+  if (!container) return;
+  const visible = impactFilter === 'all'
+    ? impacts
+    : impacts.filter(e => (e.domain || e.cat) === impactFilter);
+  if (!visible.length) {
+    container.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text3);font-size:0.85rem;">No wins logged yet — add your first one above! 💪</div>`;
+    return;
   }
+  container.innerHTML = visible.map(e => {
+    const domain = e.domain || e.cat || 'General';
+    const result = e.result || e.detail || '';
+    const type   = e.type   || '';
+    return `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:10px;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px;">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+          <span class="badge b-green">${escHtml(domain)}</span>
+          ${type ? `<span class="badge b-blue" style="font-size:0.6rem;">${escHtml(type)}</span>` : ''}
+          <span style="font-size:0.68rem;color:var(--text3);font-family:var(--mono);">${escHtml(e.date||'')}</span>
+        </div>
+        <div style="display:flex;gap:4px;flex-shrink:0;">
+          <button class="del-btn" onclick="editImpact(${e.id})" title="Edit">✏️</button>
+          <button class="del-btn" onclick="deleteImpact(${e.id})" title="Delete" style="color:var(--red);">✕</button>
+        </div>
+      </div>
+      <div style="font-weight:600;color:var(--text);margin-bottom:4px;">${escHtml(e.title)}</div>
+      ${result ? `<div style="font-size:0.8rem;color:var(--text2);margin-bottom:4px;">${escHtml(result)}</div>` : ''}
+      ${e.metric ? `<div style="font-size:0.78rem;color:var(--green);font-weight:600;">📊 ${escHtml(e.metric)}</div>` : ''}
+    </div>`;
+  }).join('');
+}
 
-  /** Set category filter and re-render */
-  function filterImpact(cat) {
-    impactFilter = cat;
-    // Update active state on filter buttons
-    document.querySelectorAll('.imp-filter-btn').forEach(b => {
-      b.classList.toggle('active', b.dataset.cat === cat);
+/** Update the stats bar above the filter buttons */
+function updateImpactStats() {
+  const el = document.getElementById('impact-stats');
+  if (!el) return;
+  const total    = impacts.length;
+  const byDomain = {};
+  impacts.forEach(e => { const d = e.domain||e.cat||'General'; byDomain[d]=(byDomain[d]||0)+1; });
+  const top = Object.entries(byDomain).sort((a,b)=>b[1]-a[1]).slice(0,3);
+  el.innerHTML = `
+    <div class="card" style="text-align:center;"><div style="font-size:1.4rem;font-weight:700;color:var(--green);">${total}</div><div style="font-size:0.7rem;color:var(--text3);">Total Wins</div></div>
+    ${top.map(([d,n])=>`<div class="card" style="text-align:center;"><div style="font-size:1.4rem;font-weight:700;color:var(--blue);">${n}</div><div style="font-size:0.7rem;color:var(--text3);">${escHtml(d)}</div></div>`).join('')}`;
+}
+
+/**
+ * Generate and show the rap sheet.
+ * FIX: uses correct output element ID (rap-sheet-output) and shows rap-sheet-section.
+ */
+function generateRapSheet() {
+  if (!impacts.length) { showToast('Log some wins first!', 'error'); return; }
+  const out     = document.getElementById('rap-sheet-output');
+  const section = document.getElementById('rap-sheet-section');
+  if (!out) return;
+
+  const byDomain = {};
+  impacts.forEach(e => {
+    const d = e.domain || e.cat || 'General';
+    if (!byDomain[d]) byDomain[d] = [];
+    byDomain[d].push(e);
+  });
+
+  const lines = [
+    'SECURITY PERFORMANCE SUMMARY',
+    'Gabriel Williams — Security Engineer, Avesis',
+    `Generated: ${new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}`,
+    '═'.repeat(50), ''
+  ];
+  Object.entries(byDomain).forEach(([domain, entries]) => {
+    lines.push(`▸ ${domain.toUpperCase()}`);
+    entries.forEach(e => {
+      lines.push(`  • [${e.date||''}] ${e.title}`);
+      if (e.result || e.detail) lines.push(`    Result: ${e.result||e.detail}`);
+      if (e.metric)             lines.push(`    Metric: ${e.metric}`);
     });
-    renderImpact();
-  }
-
-  /** Delete an impact entry by id, with confirmation modal */
-  function deleteImpact(id) {
-    openModal(`
-      <h3>🗑 Delete Impact Entry</h3>
-      <p>Are you sure you want to delete this entry? This cannot be undone.</p>
-      <div class="modal-actions">
-        <button class="btn btn-danger" onclick="executeDeleteImpact(${id});closeModal()">Delete</button>
-        <button class="btn" onclick="closeModal()">Cancel</button>
-      </div>`);
-  }
-
-  /** Actually remove the entry (called from modal confirm) */
-  function executeDeleteImpact(id) {
-    impacts = impacts.filter(x => x.id !== id);
-    saveImpacts();
-    renderImpact();
-    showToast('Entry deleted.', 'info');
-  }
-
-  /** Open an edit modal pre-filled with entry data */
-  function editImpact(id) {
-    const e = impacts.find(x => x.id === id);
-    if (!e) return;
-    openModal(`
-      <h3>✏️ Edit Impact Entry</h3>
-      <div class="form-row">
-        <label>Date</label>
-        <input id="edit-imp-date" type="date" value="${escAttr(e.date)}">
-      </div>
-      <div class="form-row">
-        <label>Category</label>
-        <select id="edit-imp-cat">
-          ${['General','Vulnerability','Compliance','Incident','Automation','Training','Risk','Architecture']
-            .map(c => `<option value="${escAttr(c)}" ${c===e.cat?'selected':''}>${escHtml(c)}</option>`).join('')}
-        </select>
-      </div>
-      <div class="form-row">
-        <label>Title</label>
-        <input id="edit-imp-title" type="text" value="${escAttr(e.title)}" placeholder="What did you accomplish?">
-      </div>
-      <div class="form-row">
-        <label>Metric / Quantified Result</label>
-        <input id="edit-imp-metric" type="text" value="${escAttr(e.metric)}" placeholder="e.g. Reduced risk by 40%">
-      </div>
-      <div class="form-row">
-        <label>Detail</label>
-        <textarea id="edit-imp-detail" rows="3" placeholder="Additional context...">${escHtml(e.detail)}</textarea>
-      </div>
-      <div class="form-row">
-        <label>Tags (comma-separated)</label>
-        <input id="edit-imp-tags" type="text" value="${escAttr(e.tags.join(', '))}">
-      </div>
-      <div class="modal-actions">
-        <button class="btn btn-primary" onclick="saveImpactEdit(${id});closeModal()">Save</button>
-        <button class="btn" onclick="closeModal()">Cancel</button>
-      </div>`);
-  }
-
-  /** Persist edits from the edit modal back to the impacts array */
-  function saveImpactEdit(id) {
-    const idx = impacts.findIndex(x => x.id === id);
-    if (idx === -1) return;
-    const title = document.getElementById('edit-imp-title')?.value?.trim();
-    if (!title) { showToast('Title is required.', 'error'); return; }
-    impacts[idx] = {
-      ...impacts[idx],
-      date:   document.getElementById('edit-imp-date')?.value   || impacts[idx].date,
-      cat:    document.getElementById('edit-imp-cat')?.value    || impacts[idx].cat,
-      title,
-      metric: document.getElementById('edit-imp-metric')?.value?.trim() || '',
-      detail: document.getElementById('edit-imp-detail')?.value?.trim() || '',
-      tags:   (document.getElementById('edit-imp-tags')?.value || '')
-                .split(',').map(t => t.trim()).filter(Boolean)
-    };
-    saveImpacts();
-    renderImpact();
-    showToast('Entry updated.', 'success');
-  }
-
-  /** Build the HTML list of impact entries, respecting current filter */
-  function renderImpact() {
-    const container = document.getElementById('impact-list');
-    if (!container) return;
-
-    const visible = impactFilter === 'all'
-      ? impacts
-      : impacts.filter(e => e.cat === impactFilter);
-
-    if (!visible.length) {
-      container.innerHTML = '<p class="empty-msg">No impact entries yet. Log your wins above!</p>';
-      return;
-    }
-
-    container.innerHTML = visible.map(e => {
-      const tagHtml = e.tags.length
-        ? e.tags.map(t => `<span class="tag">${escHtml(t)}</span>`).join('')
-        : '';
-      return `
-        <div class="impact-card" id="impact-${e.id}">
-          <div class="impact-header">
-            <span class="impact-cat badge b-green">${escHtml(e.cat)}</span>
-            <span class="impact-date">${escHtml(e.date)}</span>
-            <div class="impact-actions">
-              <button class="btn-icon" onclick="editImpact(${e.id})" title="Edit">✏️</button>
-              <button class="btn-icon btn-danger-icon" onclick="deleteImpact(${e.id})" title="Delete">🗑</button>
-            </div>
-          </div>
-          <div class="impact-title">${escHtml(e.title)}</div>
-          ${e.metric ? `<div class="impact-metric">📊 ${escHtml(e.metric)}</div>` : ''}
-          ${e.detail  ? `<div class="impact-detail">${escHtml(e.detail)}</div>`   : ''}
-          ${tagHtml   ? `<div class="impact-tags">${tagHtml}</div>`               : ''}
-        </div>`;
-    }).join('');
-  }
-
-  /**
-   * Build a formatted "rap sheet" / performance summary from all impacts.
-   * Groups by category, lists each entry with its metric.
-   * Suitable for pasting into a self-review or brag doc.
-   */
-  function generateRapSheet() {
-    const out = document.getElementById('rap-output');
-    if (!out) return;
-
-    if (!impacts.length) {
-      out.textContent = 'No impact entries to generate a report from.';
-      return;
-    }
-
-    // Group by category
-    const byCategory = {};
-    impacts.forEach(e => {
-      if (!byCategory[e.cat]) byCategory[e.cat] = [];
-      byCategory[e.cat].push(e);
-    });
-
-    const lines = [];
-    lines.push('SECURITY PERFORMANCE SUMMARY');
-    lines.push('Gabriel Williams — Security Engineer, Avesis');
-    lines.push(`Generated: ${new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' })}`);
-    lines.push('═'.repeat(50));
     lines.push('');
+  });
+  lines.push('─'.repeat(50));
+  lines.push(`Total entries: ${impacts.length}`);
 
-    Object.entries(byCategory).forEach(([cat, entries]) => {
-      lines.push(`▸ ${cat.toUpperCase()}`);
-      entries.forEach(e => {
-        lines.push(`  • ${e.date}  ${e.title}`);
-        if (e.metric) lines.push(`         Result: ${e.metric}`);
-        if (e.detail)  lines.push(`         Detail: ${e.detail}`);
-      });
-      lines.push('');
-    });
+  out.textContent = lines.join('\n');
+  if (section) section.style.display = 'block';
+  section?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
 
-    lines.push('─'.repeat(50));
-    lines.push(`Total entries: ${impacts.length}`);
-
-    out.textContent = lines.join('\n');
-    out.style.display = 'block';
-  }
-
-  /** Copy the generated rap sheet text to clipboard */
-  function copyRapSheet() {
-    const out = document.getElementById('rap-output');
-    if (!out || !out.textContent || out.textContent.includes('No impact entries')) {
-      showToast('Generate the report first.', 'error');
-      return;
-    }
-    navigator.clipboard.writeText(out.textContent)
-      .then(() => showToast('Report copied to clipboard!', 'success'))
-      .catch(() => showToast('Copy failed — please select and copy manually.', 'error'));
-  }
+/**
+ * Copy the rap sheet to clipboard.
+ * FIX: uses correct element ID (rap-sheet-output not rap-output).
+ */
+function copyRapSheet() {
+  const out = document.getElementById('rap-sheet-output');
+  if (!out?.textContent?.trim()) { showToast('Generate the report first.', 'error'); return; }
+  navigator.clipboard.writeText(out.textContent)
+    .then(() => showToast('Rap sheet copied! 📋', 'success'))
+    .catch(() => showToast('Copy failed — select text manually.', 'error'));
+}
 
   //  INITIALISATION — runs once on DOMContentLoaded
   // ═══════════════════════════════════════════════════════════════
 
+  // Wire up beforeunload and keyboard shortcuts on DOM ready.
+  // NOTE: The app uses inline onclick handlers and the nav() function for
+  // navigation — no JS-driven tab system needed here.
   document.addEventListener('DOMContentLoaded', () => {
 
-    // ── Before-unload: save note to localStorage only (no async) ──
-    // FIX: original used async Supabase sync inside beforeunload which
-    //      is unreliable. We only do the fast synchronous localStorage
-    //      path here; Supabase sync happens on every explicit save action.
-    window.addEventListener('beforeunload', () => {
-      saveCurrentNote(true); // true = local-only, skip Supabase
+    // Save current note to localStorage on page close (sync only — no async Supabase)
+    window.addEventListener('beforeunload', () => saveCurrentNote(true));
+
+    // Modal: click the #modal backdrop to dismiss
+    document.getElementById('modal')?.addEventListener('click', e => {
+      if (e.target.id === 'modal') closeModal();
     });
 
-    // ── Tab navigation ────────────────────────────────────────────
-    document.querySelectorAll('.nav-tab').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const target = btn.dataset.tab;
-        document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
-        document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-        btn.classList.add('active');
-        const pane = document.getElementById('tab-' + target);
-        if (pane) pane.classList.add('active');
-
-        // Lazy-render sections that need it when first navigating to their tab
-        if (target === 'schedule') {
-          buildDaySchedule();
-          buildWeek();
-        }
-        if (target === 'notes') {
-          renderFolderTree();
-          renderNotesList();
-        }
-        if (target === 'impact') {
-          renderImpact();
-        }
-        if (target === 'todos') {
-          renderTodos();
-        }
-        if (target === 'domains') {
-          renderDomains();
-        }
-      });
-    });
-
-    // ── Modal backdrop click-to-close ─────────────────────────────
-    const backdrop = document.getElementById('modal-backdrop');
-    if (backdrop) {
-      backdrop.addEventListener('click', e => {
-        // Only close if the user clicked the backdrop itself, not the modal box
-        if (e.target === backdrop) closeModal();
-      });
-    }
-
-    // ── Keyboard shortcuts ────────────────────────────────────────
+    // Keyboard shortcuts
     document.addEventListener('keydown', e => {
-      // Escape closes open modal
       if (e.key === 'Escape') closeModal();
-
-      // Ctrl/Cmd + S — save current note
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
         if (currentNoteId) saveCurrentNote();
       }
-
-      // Ctrl/Cmd + N — new note (when on notes tab)
-      if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
-        const notesPane = document.getElementById('tab-notes');
-        if (notesPane && notesPane.classList.contains('active')) {
-          e.preventDefault();
-          createNote();
-        }
-      }
     });
 
-    // ── Note editor auto-save debounce ────────────────────────────
-    const noteBody = document.getElementById('note-body');
-    if (noteBody) {
-      noteBody.addEventListener('input', () => {
-        clearTimeout(autoSaveTimer);
-        autoSaveTimer = setTimeout(() => saveCurrentNote(), 2000);
-      });
-    }
-    const noteTitle = document.getElementById('note-title-input');
-    if (noteTitle) {
-      noteTitle.addEventListener('input', () => {
-        clearTimeout(autoSaveTimer);
-        autoSaveTimer = setTimeout(() => saveCurrentNote(), 2000);
-      });
-    }
-
-    // ── Note search ───────────────────────────────────────────────
-    const noteSearch = document.getElementById('note-search');
-    if (noteSearch) {
-      noteSearch.addEventListener('input', () => {
-        renderNotesList(noteSearch.value.trim());
-      });
-    }
-
-    // ── Todo input — Enter to add ─────────────────────────────────
-    const todoInput = document.getElementById('todo-input');
-    if (todoInput) {
-      todoInput.addEventListener('keydown', e => {
-        if (e.key === 'Enter') addTodo();
-      });
-    }
-
-    // ── Impact filter buttons ─────────────────────────────────────
-    document.querySelectorAll('.imp-filter-btn').forEach(btn => {
-      btn.addEventListener('click', () => filterImpact(btn.dataset.cat));
-    });
-
-    // ── Clock ─────────────────────────────────────────────────────
-    tick(); // run immediately so there's no 1-second blank
+    // Clock tick
+    tick();
     setInterval(tick, 1000);
 
-    // ── Auth + initial data load ──────────────────────────────────
+    // Auth init — loads localStorage immediately, attempts background Supabase re-auth
     initAuth();
   });
 
@@ -3223,6 +3178,9 @@ function clearEmail() {
   function renderFolderTree() {
     renderNotesList();
   }
+
+// Alias — renderFolderTree is called from nav() when switching to notes panel.
+function renderFolderTree() { renderNotesList(); }
 
 </script>
 </body>
