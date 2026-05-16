@@ -850,7 +850,6 @@ function clearDone() {
   const doneIds = todos.filter(t => t.done).map(t => t.id);
   todos = todos.filter(x => !x.done);
   S.set('gw_todos_v4', todos);
-  doneIds.forEach(id =>);
   renderTodos(); updateTodayProgress();
 }
 
@@ -861,7 +860,6 @@ function archiveDone() {
   todos = todos.filter(t => !t.done);
   S.set('gw_todos_v4', todos);
   S.set('gw_archive_v1', todoArchive);
-  done.forEach(t =>);
   renderTodos(); updateTodayProgress();
   // FIX: was alert() — now uses non-blocking toast
   showToast(`${done.length} task${done.length>1?'s':''} archived.`, 'success');
@@ -1896,7 +1894,6 @@ function executeFolderDelete(fid) {
     const s = document.getElementById('note-saved');     if (s) s.textContent = '—';
   }
   saveFolders(); saveNotes();
-  deletedNoteIds.forEach(id =>);
   closeModal(); renderNotesList();
 }
 
